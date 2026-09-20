@@ -2,9 +2,7 @@
    AI STUDY ASSISTANT
    Browser PDF OCR + Railway Backend
 ===================================================== */
-
-const API_BASE =
-    "https://ai-study-assistant-production-ce2c.up.railway.app";
+const API_BASE = "http://localhost:5000";
 
 
 let selectedPDF = null;

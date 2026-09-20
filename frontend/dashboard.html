@@ -1,0 +1,1131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>AI Study Assistant - Dashboard</title>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: Arial, Helvetica, sans-serif;
+        }
+
+        body {
+            background: #f5f7fb;
+            color: #1f2937;
+        }
+
+        /* ================= SIDEBAR ================= */
+
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 250px;
+            height: 100vh;
+            background: #111827;
+            color: white;
+            padding: 25px 15px;
+            z-index: 1000;
+        }
+
+        .logo {
+            font-size: 22px;
+            font-weight: bold;
+            padding: 0 15px 30px;
+        }
+
+        .logo span {
+            color: #60a5fa;
+        }
+
+        .nav {
+            display: flex;
+            flex-direction: column;
+            gap: 7px;
+        }
+
+        .nav a {
+            display: block;
+            text-decoration: none;
+            color: #d1d5db;
+            padding: 13px 15px;
+            border-radius: 10px;
+            font-size: 15px;
+            transition: 0.2s;
+        }
+
+        .nav a:hover {
+            background: #1f2937;
+            color: white;
+        }
+
+        .nav a.active {
+            background: #2563eb;
+            color: white;
+        }
+
+        /* ================= MAIN ================= */
+
+        .main {
+            margin-left: 250px;
+            padding: 30px;
+            min-height: 100vh;
+        }
+
+        /* ================= TOP BAR ================= */
+
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+
+        .topbar h1 {
+            font-size: 28px;
+            color: #111827;
+        }
+
+        .topbar p {
+            color: #6b7280;
+            margin-top: 6px;
+        }
+
+        .backend-status {
+            background: white;
+            padding: 10px 15px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #9ca3af;
+        }
+
+        .status-dot.online {
+            background: #22c55e;
+        }
+
+        .status-dot.offline {
+            background: #ef4444;
+        }
+
+        /* ================= WELCOME ================= */
+
+        .welcome {
+            background: linear-gradient(
+                135deg,
+                #2563eb,
+                #4f46e5
+            );
+
+            color: white;
+            border-radius: 18px;
+            padding: 30px;
+            margin-bottom: 30px;
+        }
+
+        .welcome h2 {
+            font-size: 26px;
+            margin-bottom: 10px;
+        }
+
+        .welcome p {
+            max-width: 750px;
+            line-height: 1.6;
+            opacity: 0.92;
+        }
+
+        .welcome-button {
+            display: inline-block;
+            margin-top: 20px;
+            background: white;
+            color: #2563eb;
+            text-decoration: none;
+            padding: 11px 18px;
+            border-radius: 9px;
+            font-weight: bold;
+        }
+
+        .welcome-button:hover {
+            background: #eff6ff;
+        }
+
+        /* ================= SECTION ================= */
+
+        .section-title {
+            font-size: 21px;
+            color: #111827;
+            margin-bottom: 18px;
+        }
+
+        /* ================= FEATURE CARDS ================= */
+
+        .features {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 18px;
+            margin-bottom: 35px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 22px;
+            box-shadow: 0 3px 12px rgba(0,0,0,0.06);
+            transition: 0.2s;
+        }
+
+        .card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 7px 20px rgba(0,0,0,0.1);
+        }
+
+        .card-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 12px;
+            background: #eff6ff;
+
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            font-size: 24px;
+            margin-bottom: 15px;
+        }
+
+        .card h3 {
+            font-size: 17px;
+            margin-bottom: 8px;
+            color: #111827;
+        }
+
+        .card p {
+            color: #6b7280;
+            font-size: 14px;
+            line-height: 1.5;
+            min-height: 63px;
+            margin-bottom: 14px;
+        }
+
+        .card a {
+            text-decoration: none;
+            color: #2563eb;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        /* ================= CHAT BOT CARD ================= */
+
+        .chatbot-card {
+            border: 2px solid #dbeafe;
+        }
+
+        .chatbot-card .card-icon {
+            background: #dbeafe;
+        }
+
+        .chatbot-card a {
+            color: #4f46e5;
+        }
+
+        /* ================= STATS ================= */
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 18px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 15px;
+            padding: 22px;
+            box-shadow: 0 3px 12px rgba(0,0,0,0.06);
+        }
+
+        .stat-card h4 {
+            color: #6b7280;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+
+        .stat-value {
+            font-size: 25px;
+            font-weight: bold;
+            color: #111827;
+
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .stat-description {
+            color: #9ca3af;
+            font-size: 12px;
+            margin-top: 7px;
+        }
+
+        /* ================= QUICK START ================= */
+
+        .quick-start {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 3px 12px rgba(0,0,0,0.06);
+        }
+
+        .quick-start h2 {
+            margin-bottom: 8px;
+        }
+
+        .quick-start p {
+            color: #6b7280;
+            margin-bottom: 18px;
+        }
+
+        .quick-buttons {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .quick-buttons a {
+            text-decoration: none;
+            padding: 11px 17px;
+            border-radius: 9px;
+            background: #2563eb;
+            color: white;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .quick-buttons a.secondary {
+            background: #eef2ff;
+            color: #4338ca;
+        }
+
+        /* ================= MOBILE ================= */
+
+        .mobile-header {
+            display: none;
+        }
+
+        @media (max-width: 1150px) {
+
+            .features {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+        }
+
+        @media (max-width: 800px) {
+
+            .sidebar {
+                display: none;
+            }
+
+            .main {
+                margin-left: 0;
+                padding: 20px;
+            }
+
+            .mobile-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 25px;
+            }
+
+            .mobile-header h2 {
+                font-size: 20px;
+            }
+
+            .mobile-header a {
+                text-decoration: none;
+                background: #2563eb;
+                color: white;
+                padding: 9px 12px;
+                border-radius: 8px;
+                font-size: 12px;
+            }
+
+            .topbar {
+                display: block;
+            }
+
+            .backend-status {
+                display: inline-flex;
+                margin-top: 15px;
+            }
+
+            .stats {
+                grid-template-columns: 1fr;
+            }
+
+        }
+
+        @media (max-width: 550px) {
+
+            .features {
+                grid-template-columns: 1fr;
+            }
+
+            .welcome {
+                padding: 22px;
+            }
+
+            .welcome h2 {
+                font-size: 22px;
+            }
+
+            .topbar h1 {
+                font-size: 24px;
+            }
+
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- ================= SIDEBAR ================= -->
+
+    <aside class="sidebar">
+
+        <div class="logo">
+            AI <span>Study Assistant</span>
+        </div>
+
+        <nav class="nav">
+
+            <a href="dashboard.html" class="active">
+                🏠 Dashboard
+            </a>
+
+            <a href="documents.html">
+                📄 My Documents
+            </a>
+
+            <a href="ask-ai.html">
+                🔎 Ask AI
+            </a>
+
+            <!-- CHAT BOT -->
+            <a href="chatbot.html">
+                🤖 Chat Bot
+            </a>
+
+            <a href="history.html">
+                📜 History
+            </a>
+
+            <a href="tools.html">
+                🛠️ Study Tools
+            </a>
+
+            <a href="settings.html">
+                ⚙️ Settings
+            </a>
+
+        </nav>
+
+    </aside>
+
+
+    <!-- ================= MAIN ================= -->
+
+    <main class="main">
+
+        <!-- Mobile Header -->
+
+        <div class="mobile-header">
+
+            <h2>AI Study Assistant</h2>
+
+            <a href="chatbot.html">
+                🤖 Chat Bot
+            </a>
+
+        </div>
+
+
+        <!-- ================= TOP BAR ================= -->
+
+        <div class="topbar">
+
+            <div>
+
+                <h1>Dashboard</h1>
+
+                <p>
+                    Welcome to your AI-powered study assistant.
+                </p>
+
+            </div>
+
+
+            <div class="backend-status">
+
+                <span
+                    id="statusDot"
+                    class="status-dot">
+                </span>
+
+                <span id="systemStatus">
+                    Checking backend...
+                </span>
+
+            </div>
+
+        </div>
+
+
+        <!-- ================= WELCOME ================= -->
+
+        <section class="welcome">
+
+            <h2>
+                Study Smarter with AI 🚀
+            </h2>
+
+            <p>
+                Upload your question-bank PDFs, search your
+                documents, ask AI questions based on your
+                study materials, or use the Groq-powered
+                Chat Bot for general learning.
+            </p>
+
+            <a
+                href="documents.html"
+                class="welcome-button">
+
+                📄 Upload Document
+
+            </a>
+
+        </section>
+
+
+        <!-- ================= FEATURES ================= -->
+
+        <h2 class="section-title">
+            Study Features
+        </h2>
+
+
+        <section class="features">
+
+
+            <!-- DOCUMENTS -->
+
+            <div class="card">
+
+                <div class="card-icon">
+                    📄
+                </div>
+
+                <h3>
+                    My Documents
+                </h3>
+
+                <p>
+                    Upload and manage your question-bank
+                    PDF documents and study materials.
+                </p>
+
+                <a href="documents.html">
+                    Open Documents →
+                </a>
+
+            </div>
+
+
+            <!-- ASK AI -->
+
+            <div class="card">
+
+                <div class="card-icon">
+                    🔎
+                </div>
+
+                <h3>
+                    Ask AI
+                </h3>
+
+                <p>
+                    Ask questions based on your uploaded
+                    documents and get AI-generated answers.
+                </p>
+
+                <a href="ask-ai.html">
+                    Ask AI →
+                </a>
+
+            </div>
+
+
+            <!-- CHAT BOT -->
+
+            <div class="card chatbot-card">
+
+                <div class="card-icon">
+                    🤖
+                </div>
+
+                <h3>
+                    Chat Bot
+                </h3>
+
+                <p>
+                    Chat with your Groq-powered AI study
+                    assistant and ask general questions.
+                </p>
+
+                <a href="chatbot.html">
+                    Open Chat Bot →
+                </a>
+
+            </div>
+
+
+            <!-- HISTORY -->
+
+            <div class="card">
+
+                <div class="card-icon">
+                    📜
+                </div>
+
+                <h3>
+                    Study History
+                </h3>
+
+                <p>
+                    View your previous study activity
+                    and interactions.
+                </p>
+
+                <a href="history.html">
+                    View History →
+                </a>
+
+            </div>
+
+
+            <!-- STUDY TOOLS -->
+
+            <div class="card">
+
+                <div class="card-icon">
+                    🛠️
+                </div>
+
+                <h3>
+                    Study Tools
+                </h3>
+
+                <p>
+                    Access useful tools designed to
+                    support your learning.
+                </p>
+
+                <a href="tools.html">
+                    Open Tools →
+                </a>
+
+            </div>
+
+
+            <!-- SETTINGS -->
+
+            <div class="card">
+
+                <div class="card-icon">
+                    ⚙️
+                </div>
+
+                <h3>
+                    Settings
+                </h3>
+
+                <p>
+                    Manage your application preferences
+                    and settings.
+                </p>
+
+                <a href="settings.html">
+                    Open Settings →
+                </a>
+
+            </div>
+
+
+        </section>
+
+
+        <!-- ================= QUICK OVERVIEW ================= -->
+
+        <h2 class="section-title">
+            Quick Overview
+        </h2>
+
+
+        <section class="stats">
+
+
+            <!-- DOCUMENT COUNT -->
+
+            <div class="stat-card">
+
+                <h4>
+                    Uploaded Documents
+                </h4>
+
+                <div
+                    class="stat-value"
+                    id="documentCount">
+
+                    --
+
+                </div>
+
+                <div class="stat-description">
+                    Documents stored in your study assistant
+                </div>
+
+            </div>
+
+
+            <!-- AI STATUS -->
+
+            <div class="stat-card">
+
+                <h4>
+                    AI Status
+                </h4>
+
+                <div
+                    class="stat-value"
+                    id="aiStatus">
+
+                    Checking...
+
+                </div>
+
+                <div class="stat-description">
+                    Groq AI backend connection
+                </div>
+
+            </div>
+
+
+            <!-- LATEST DOCUMENT -->
+
+            <div class="stat-card">
+
+                <h4>
+                    Latest Document
+                </h4>
+
+                <div
+                    class="stat-value"
+                    id="latestDocument">
+
+                    None
+
+                </div>
+
+                <div class="stat-description">
+                    Most recently uploaded document
+                </div>
+
+            </div>
+
+
+        </section>
+
+
+        <!-- ================= QUICK START ================= -->
+
+        <section class="quick-start">
+
+            <h2>
+                Quick Start
+            </h2>
+
+            <p>
+                Start studying by uploading a document
+                or opening your AI Chat Bot.
+            </p>
+
+
+            <div class="quick-buttons">
+
+                <a href="documents.html">
+                    📄 Upload PDF
+                </a>
+
+                <a
+                    href="ask-ai.html"
+                    class="secondary">
+
+                    🔎 Ask AI
+
+                </a>
+
+                <a
+                    href="chatbot.html"
+                    class="secondary">
+
+                    🤖 Chat with AI
+
+                </a>
+
+            </div>
+
+        </section>
+
+
+    </main>
+
+
+    <!-- ================= JAVASCRIPT ================= -->
+
+    <script>
+
+        /*
+         * ==========================================
+         * LOCAL DEVELOPMENT
+         * ==========================================
+         *
+         * Frontend:
+         * http://localhost:3000
+         *
+         * Backend:
+         * http://localhost:5000
+         *
+         * Therefore API_BASE is port 5000.
+         */
+
+        const API_BASE =
+            "http://localhost:5000";
+
+
+        // ==========================================
+        // CHECK BACKEND
+        // ==========================================
+
+        async function checkBackend() {
+
+            const statusText =
+                document.getElementById(
+                    "systemStatus"
+                );
+
+            const statusDot =
+                document.getElementById(
+                    "statusDot"
+                );
+
+            const aiStatus =
+                document.getElementById(
+                    "aiStatus"
+                );
+
+
+            try {
+
+                const response =
+                    await fetch(
+                        `${API_BASE}/api/health`
+                    );
+
+
+                if (!response.ok) {
+
+                    throw new Error(
+                        "Backend returned an error"
+                    );
+
+                }
+
+
+                const data =
+                    await response.json();
+
+
+                console.log(
+                    "Backend health:",
+                    data
+                );
+
+
+                statusText.textContent =
+                    "Backend Online";
+
+                statusDot.className =
+                    "status-dot online";
+
+
+                /*
+                 * Check Groq status.
+                 */
+
+                if (
+                    data.groqAI === "enabled"
+                ) {
+
+                    aiStatus.textContent =
+                        "Online";
+
+                } else {
+
+                    aiStatus.textContent =
+                        "Not Configured";
+
+                }
+
+
+            } catch (error) {
+
+                console.error(
+                    "Backend error:",
+                    error
+                );
+
+
+                statusText.textContent =
+                    "Backend Offline";
+
+                statusDot.className =
+                    "status-dot offline";
+
+                aiStatus.textContent =
+                    "Offline";
+
+            }
+
+        }
+
+
+        // ==========================================
+        // LOAD DOCUMENTS
+        // ==========================================
+
+        async function loadDocuments() {
+
+            const countElement =
+                document.getElementById(
+                    "documentCount"
+                );
+
+
+            try {
+
+                const response =
+                    await fetch(
+                        `${API_BASE}/api/documents`
+                    );
+
+
+                if (!response.ok) {
+
+                    throw new Error(
+                        "Failed to load documents"
+                    );
+
+                }
+
+
+                const data =
+                    await response.json();
+
+
+                console.log(
+                    "Documents:",
+                    data
+                );
+
+
+                /*
+                 * Supports common response formats.
+                 */
+
+                let documents = [];
+
+
+                if (
+                    Array.isArray(data)
+                ) {
+
+                    documents = data;
+
+                } else if (
+                    Array.isArray(
+                        data.documents
+                    )
+                ) {
+
+                    documents =
+                        data.documents;
+
+                }
+
+
+                countElement.textContent =
+                    documents.length;
+
+
+            } catch (error) {
+
+                console.error(
+                    "Documents error:",
+                    error
+                );
+
+
+                countElement.textContent =
+                    "0";
+
+            }
+
+        }
+
+
+        // ==========================================
+        // LOAD LATEST DOCUMENT
+        // ==========================================
+
+        async function loadLatestDocument() {
+
+            const latestElement =
+                document.getElementById(
+                    "latestDocument"
+                );
+
+
+            try {
+
+                const response =
+                    await fetch(
+                        `${API_BASE}/api/documents/latest`
+                    );
+
+
+                if (!response.ok) {
+
+                    throw new Error(
+                        "No latest document"
+                    );
+
+                }
+
+
+                const data =
+                    await response.json();
+
+
+                console.log(
+                    "Latest document:",
+                    data
+                );
+
+
+                let documentData = null;
+
+
+                if (
+                    data.document
+                ) {
+
+                    documentData =
+                        data.document;
+
+                } else if (
+                    data.id
+                ) {
+
+                    documentData =
+                        data;
+
+                }
+
+
+                if (
+                    documentData &&
+                    documentData.file_name
+                ) {
+
+                    latestElement.textContent =
+                        documentData.file_name;
+
+                } else if (
+                    documentData &&
+                    documentData.name
+                ) {
+
+                    latestElement.textContent =
+                        documentData.name;
+
+                } else {
+
+                    latestElement.textContent =
+                        "None";
+
+                }
+
+
+            } catch (error) {
+
+                console.error(
+                    "Latest document error:",
+                    error
+                );
+
+
+                latestElement.textContent =
+                    "None";
+
+            }
+
+        }
+
+
+        // ==========================================
+        // LOAD DASHBOARD
+        // ==========================================
+
+        async function loadDashboard() {
+
+            await Promise.all([
+                checkBackend(),
+                loadDocuments(),
+                loadLatestDocument()
+            ]);
+
+        }
+
+
+        // Start dashboard
+
+        loadDashboard();
+
+    </script>
+
+</body>
+</html>

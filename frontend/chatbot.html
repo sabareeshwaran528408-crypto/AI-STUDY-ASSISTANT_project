@@ -1,0 +1,1282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>AI Study Assistant - Chat Bot</title>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: Arial, Helvetica, sans-serif;
+        }
+
+        body {
+            background: #f5f7fb;
+            color: #1f2937;
+        }
+
+        /* ================= SIDEBAR ================= */
+
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 250px;
+            height: 100vh;
+            background: #111827;
+            color: white;
+            padding: 25px 15px;
+        }
+
+        .logo {
+            font-size: 22px;
+            font-weight: bold;
+            padding: 0 15px 30px;
+        }
+
+        .logo span {
+            color: #60a5fa;
+        }
+
+        .nav {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .nav a {
+            text-decoration: none;
+            color: #d1d5db;
+            padding: 13px 15px;
+            border-radius: 10px;
+            display: block;
+            transition: 0.2s;
+        }
+
+        .nav a:hover {
+            background: #1f2937;
+            color: white;
+        }
+
+        .nav a.active {
+            background: #2563eb;
+            color: white;
+        }
+
+        /* ================= MAIN ================= */
+
+        .main {
+            margin-left: 250px;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ================= HEADER ================= */
+
+        .header {
+            background: white;
+            padding: 18px 25px;
+            border-bottom: 1px solid #e5e7eb;
+
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-left h1 {
+            font-size: 22px;
+            color: #111827;
+        }
+
+        .header-left p {
+            color: #6b7280;
+            font-size: 13px;
+            margin-top: 4px;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .header-button {
+            border: none;
+            padding: 9px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 13px;
+        }
+
+        .dashboard-button {
+            background: #eff6ff;
+            color: #2563eb;
+        }
+
+        .clear-button {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+
+        .header-button:hover {
+            opacity: 0.85;
+        }
+
+        /* ================= MEMORY STATUS ================= */
+
+        .memory-bar {
+            background: #eef6ff;
+            border-bottom: 1px solid #dbeafe;
+            padding: 9px 25px;
+
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+
+            font-size: 13px;
+            color: #374151;
+        }
+
+        .memory-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .memory-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #22c55e;
+        }
+
+        #memoryText {
+            color: #2563eb;
+            font-weight: bold;
+        }
+
+        /* ================= CHAT ================= */
+
+        .chat-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 25px;
+
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .message {
+            display: flex;
+            width: 100%;
+        }
+
+        .message.user {
+            justify-content: flex-end;
+        }
+
+        .message.bot {
+            justify-content: flex-start;
+        }
+
+        .bubble {
+            max-width: 75%;
+            padding: 13px 16px;
+            border-radius: 14px;
+            line-height: 1.5;
+            font-size: 14px;
+            white-space: pre-wrap;
+        }
+
+        .user .bubble {
+            background: #2563eb;
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+
+        .bot .bubble {
+            background: white;
+            color: #1f2937;
+            border: 1px solid #e5e7eb;
+            border-bottom-left-radius: 4px;
+        }
+
+        .message-label {
+            font-size: 11px;
+            margin-bottom: 4px;
+            color: #6b7280;
+        }
+
+        /* ================= TYPING ================= */
+
+        .typing {
+            display: none;
+            align-items: center;
+            gap: 5px;
+            padding: 12px 16px;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 14px;
+            width: fit-content;
+        }
+
+        .typing span {
+            width: 7px;
+            height: 7px;
+            background: #9ca3af;
+            border-radius: 50%;
+            animation: typingAnimation 1.2s infinite;
+        }
+
+        .typing span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .typing span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes typingAnimation {
+            0%, 60%, 100% {
+                transform: translateY(0);
+            }
+
+            30% {
+                transform: translateY(-5px);
+            }
+        }
+
+        /* ================= INPUT ================= */
+
+        .input-area {
+            background: white;
+            border-top: 1px solid #e5e7eb;
+            padding: 15px 25px;
+        }
+
+        .input-box {
+            display: flex;
+            align-items: flex-end;
+            gap: 10px;
+            max-width: 1000px;
+            margin: auto;
+        }
+
+        #messageInput {
+            flex: 1;
+            resize: none;
+            min-height: 45px;
+            max-height: 130px;
+
+            border: 1px solid #d1d5db;
+            border-radius: 12px;
+
+            padding: 12px 14px;
+            outline: none;
+
+            font-size: 14px;
+        }
+
+        #messageInput:focus {
+            border-color: #2563eb;
+        }
+
+        #sendButton {
+            height: 45px;
+            padding: 0 20px;
+
+            border: none;
+            border-radius: 10px;
+
+            background: #2563eb;
+            color: white;
+
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        #sendButton:hover {
+            background: #1d4ed8;
+        }
+
+        #sendButton:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+        }
+
+        .hint {
+            text-align: center;
+            font-size: 11px;
+            color: #9ca3af;
+            margin-top: 8px;
+        }
+
+        /* ================= MOBILE ================= */
+
+        @media (max-width: 800px) {
+
+            .sidebar {
+                display: none;
+            }
+
+            .main {
+                margin-left: 0;
+            }
+
+            .header {
+                padding: 15px;
+            }
+
+            .header-left h1 {
+                font-size: 19px;
+            }
+
+            .memory-bar {
+                padding: 8px 15px;
+            }
+
+            .chat-container {
+                padding: 15px;
+            }
+
+            .bubble {
+                max-width: 88%;
+            }
+
+            .input-area {
+                padding: 12px;
+            }
+
+            .header-actions {
+                gap: 5px;
+            }
+
+            .header-button {
+                padding: 8px 10px;
+                font-size: 11px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- ================= SIDEBAR ================= -->
+
+    <aside class="sidebar">
+
+        <div class="logo">
+            AI <span>Study Assistant</span>
+        </div>
+
+        <nav class="nav">
+
+            <a href="dashboard.html">
+                🏠 Dashboard
+            </a>
+
+            <a href="documents.html">
+                📄 My Documents
+            </a>
+
+            <a href="ask-ai.html">
+                🔎 Ask AI
+            </a>
+
+            <a href="chatbot.html" class="active">
+                🤖 Chat Bot
+            </a>
+
+            <a href="history.html">
+                📜 History
+            </a>
+
+            <a href="tools.html">
+                🛠️ Study Tools
+            </a>
+
+            <a href="settings.html">
+                ⚙️ Settings
+            </a>
+
+        </nav>
+
+    </aside>
+
+
+    <!-- ================= MAIN ================= -->
+
+    <main class="main">
+
+        <!-- HEADER -->
+
+        <header class="header">
+
+            <div class="header-left">
+
+                <h1>🤖 AI Chat Bot</h1>
+
+                <p>
+                    Your temporary-memory Groq AI study assistant
+                </p>
+
+            </div>
+
+            <div class="header-actions">
+
+                <button
+                    class="header-button dashboard-button"
+                    onclick="goDashboard()">
+                    🏠 Dashboard
+                </button>
+
+                <button
+                    class="header-button clear-button"
+                    onclick="clearMemory()">
+                    🗑️ Clear Memory
+                </button>
+
+            </div>
+
+        </header>
+
+
+        <!-- MEMORY STATUS -->
+
+        <div class="memory-bar">
+
+            <div class="memory-info">
+
+                <span class="memory-dot"></span>
+
+                <span>
+                    Temporary Memory:
+                </span>
+
+                <span id="memoryText">
+                    Active
+                </span>
+
+            </div>
+
+            <div>
+                Session memory only
+            </div>
+
+        </div>
+
+
+        <!-- CHAT -->
+
+        <section
+            id="chatContainer"
+            class="chat-container">
+
+            <!-- Initial bot message will be created by JavaScript -->
+
+        </section>
+
+
+        <!-- TYPING INDICATOR -->
+
+        <div
+            id="typingContainer"
+            style="padding: 0 25px 10px;">
+
+            <div
+                id="typing"
+                class="typing">
+
+                <span></span>
+                <span></span>
+                <span></span>
+
+            </div>
+
+        </div>
+
+
+        <!-- INPUT -->
+
+        <div class="input-area">
+
+            <div class="input-box">
+
+                <textarea
+                    id="messageInput"
+                    placeholder="Ask me anything..."
+                    rows="1"></textarea>
+
+                <button
+                    id="sendButton"
+                    onclick="sendMessage()">
+
+                    Send
+
+                </button>
+
+            </div>
+
+            <div class="hint">
+                Enter = Send &nbsp; | &nbsp;
+                Shift + Enter = New line
+            </div>
+
+        </div>
+
+    </main>
+
+
+    <!-- ================= JAVASCRIPT ================= -->
+
+    <script>
+
+        /*
+         * =====================================================
+         * CONFIGURATION
+         * =====================================================
+         *
+         * LOCAL TESTING:
+         * http://localhost:5000
+         *
+         * FRONTEND:
+         * http://localhost:3000
+         *
+         * Groq API key is NEVER placed here.
+         */
+
+        const API_BASE = "http://localhost:5000";
+
+
+        /*
+         * =====================================================
+         * TEMPORARY MEMORY
+         * =====================================================
+         *
+         * We use sessionStorage.
+         *
+         * It stores:
+         *
+         * 1. User name
+         * 2. Recent conversation
+         * 3. Working context
+         *
+         * This is temporary browser-session storage.
+         */
+
+
+        const MEMORY_KEY =
+            "aiStudyAssistantChatMemory";
+
+
+        const NAME_KEY =
+            "aiStudyAssistantUserName";
+
+
+        const MAX_MESSAGES = 12;
+
+
+        // ================= LOAD MEMORY =================
+
+        function loadMemory() {
+
+            try {
+
+                const saved =
+                    sessionStorage.getItem(MEMORY_KEY);
+
+                if (!saved) {
+
+                    return [];
+
+                }
+
+                const memory =
+                    JSON.parse(saved);
+
+                if (!Array.isArray(memory)) {
+
+                    return [];
+
+                }
+
+                return memory;
+
+            } catch (error) {
+
+                console.error(
+                    "Memory loading error:",
+                    error
+                );
+
+                return [];
+
+            }
+
+        }
+
+
+        // ================= SAVE MEMORY =================
+
+        function saveMemory(memory) {
+
+            try {
+
+                /*
+                 * Keep only the latest messages.
+                 */
+
+                const limitedMemory =
+                    memory.slice(-MAX_MESSAGES);
+
+                sessionStorage.setItem(
+                    MEMORY_KEY,
+                    JSON.stringify(limitedMemory)
+                );
+
+            } catch (error) {
+
+                console.error(
+                    "Memory saving error:",
+                    error
+                );
+
+            }
+
+        }
+
+
+        // ================= USER NAME =================
+
+        function getUserName() {
+
+            return sessionStorage.getItem(NAME_KEY);
+
+        }
+
+
+        function saveUserName(name) {
+
+            if (!name) {
+
+                return;
+
+            }
+
+            sessionStorage.setItem(
+                NAME_KEY,
+                name.trim()
+            );
+
+        }
+
+
+        /*
+         * Try to detect:
+         *
+         * "My name is Sabareeshwaran"
+         * "I am Sabareeshwaran"
+         * "I'm Sabareeshwaran"
+         */
+
+        function detectName(message) {
+
+            const patterns = [
+
+                /my name is\s+([a-zA-Z][a-zA-Z .'-]{1,40})/i,
+
+                /^i am\s+([a-zA-Z][a-zA-Z .'-]{1,40})$/i,
+
+                /^i'm\s+([a-zA-Z][a-zA-Z .'-]{1,40})$/i
+
+            ];
+
+
+            for (const pattern of patterns) {
+
+                const match =
+                    message.match(pattern);
+
+                if (match && match[1]) {
+
+                    let name =
+                        match[1].trim();
+
+                    /*
+                     * Remove common trailing words.
+                     */
+
+                    name = name
+                        .replace(/\s+(and|but|from|studying|learning).*$/i, "")
+                        .trim();
+
+                    if (name.length > 1) {
+
+                        return name;
+
+                    }
+
+                }
+
+            }
+
+            return null;
+
+        }
+
+
+        // ================= MEMORY SUMMARY =================
+
+        function getMemorySummary() {
+
+            const memory =
+                loadMemory();
+
+            const name =
+                getUserName();
+
+            let summary = "";
+
+            if (name) {
+
+                summary +=
+                    `User's name: ${name}\n`;
+
+            }
+
+            if (memory.length > 0) {
+
+                summary +=
+                    "Recent conversation:\n";
+
+                memory.forEach(item => {
+
+                    summary +=
+                        `${item.role}: ${item.content}\n`;
+
+                });
+
+            }
+
+            return summary;
+
+        }
+
+
+        // ================= UPDATE MEMORY STATUS =================
+
+        function updateMemoryStatus() {
+
+            const memory =
+                loadMemory();
+
+            const name =
+                getUserName();
+
+            const memoryText =
+                document.getElementById("memoryText");
+
+
+            if (name) {
+
+                memoryText.textContent =
+                    `Active • Remembering ${name}`;
+
+            } else if (memory.length > 0) {
+
+                memoryText.textContent =
+                    `Active • ${memory.length} messages`;
+
+            } else {
+
+                memoryText.textContent =
+                    "Active • Empty";
+
+            }
+
+        }
+
+
+        // ================= ADD MESSAGE TO UI =================
+
+        function addMessage(
+            role,
+            content
+        ) {
+
+            const chatContainer =
+                document.getElementById(
+                    "chatContainer"
+                );
+
+
+            const message =
+                document.createElement("div");
+
+            message.className =
+                `message ${role}`;
+
+
+            const wrapper =
+                document.createElement("div");
+
+
+            const label =
+                document.createElement("div");
+
+            label.className =
+                "message-label";
+
+            label.textContent =
+                role === "user"
+                    ? "You"
+                    : "AI Assistant";
+
+
+            const bubble =
+                document.createElement("div");
+
+            bubble.className =
+                "bubble";
+
+            bubble.textContent =
+                content;
+
+
+            wrapper.appendChild(label);
+
+            wrapper.appendChild(bubble);
+
+            message.appendChild(wrapper);
+
+            chatContainer.appendChild(message);
+
+
+            chatContainer.scrollTop =
+                chatContainer.scrollHeight;
+
+        }
+
+
+        // ================= LOAD OLD CHAT INTO UI =================
+
+        function restoreConversation() {
+
+            const memory =
+                loadMemory();
+
+
+            if (memory.length === 0) {
+
+                addMessage(
+                    "bot",
+                    "Hello! 👋 I'm your AI Study Assistant. You can ask me questions about programming, AI, machine learning, databases, projects, or general study topics."
+                );
+
+                updateMemoryStatus();
+
+                return;
+
+            }
+
+
+            memory.forEach(item => {
+
+                if (
+                    item.role === "user" ||
+                    item.role === "assistant"
+                ) {
+
+                    const uiRole =
+                        item.role === "assistant"
+                            ? "bot"
+                            : "user";
+
+                    addMessage(
+                        uiRole,
+                        item.content
+                    );
+
+                }
+
+            });
+
+
+            updateMemoryStatus();
+
+        }
+
+
+        // ================= TYPING =================
+
+        function showTyping() {
+
+            document.getElementById(
+                "typing"
+            ).style.display = "flex";
+
+            const chatContainer =
+                document.getElementById(
+                    "chatContainer"
+                );
+
+            chatContainer.scrollTop =
+                chatContainer.scrollHeight;
+
+        }
+
+
+        function hideTyping() {
+
+            document.getElementById(
+                "typing"
+            ).style.display = "none";
+
+        }
+
+
+        // ================= SEND MESSAGE =================
+
+        async function sendMessage() {
+
+            const input =
+                document.getElementById(
+                    "messageInput"
+                );
+
+            const sendButton =
+                document.getElementById(
+                    "sendButton"
+                );
+
+
+            const message =
+                input.value.trim();
+
+
+            if (!message) {
+
+                return;
+
+            }
+
+
+            /*
+             * Detect user's name.
+             */
+
+            const detectedName =
+                detectName(message);
+
+
+            if (detectedName) {
+
+                saveUserName(
+                    detectedName
+                );
+
+            }
+
+
+            /*
+             * Show user message.
+             */
+
+            addMessage(
+                "user",
+                message
+            );
+
+
+            /*
+             * Load previous memory.
+             */
+
+            const memory =
+                loadMemory();
+
+
+            /*
+             * Add current user message.
+             */
+
+            memory.push({
+                role: "user",
+                content: message
+            });
+
+
+            /*
+             * Keep memory small.
+             */
+
+            saveMemory(memory);
+
+
+            /*
+             * Clear input.
+             */
+
+            input.value = "";
+
+            input.style.height = "45px";
+
+
+            sendButton.disabled = true;
+
+            showTyping();
+
+
+            try {
+
+                /*
+                 * Get temporary memory.
+                 */
+
+                const currentMemory =
+                    loadMemory();
+
+
+                const memorySummary =
+                    getMemorySummary();
+
+
+                /*
+                 * Send message + memory
+                 * to backend.
+                 */
+
+                const response =
+                    await fetch(
+                        `${API_BASE}/api/chat`,
+                        {
+                            method: "POST",
+
+                            headers: {
+                                "Content-Type":
+                                    "application/json"
+                            },
+
+                            body: JSON.stringify({
+
+                                message: message,
+
+                                memory:
+                                    currentMemory,
+
+                                userName:
+                                    getUserName(),
+
+                                memorySummary:
+                                    memorySummary
+
+                            })
+                        }
+                    );
+
+
+                const data =
+                    await response.json();
+
+
+                if (!response.ok) {
+
+                    throw new Error(
+                        data.error ||
+                        data.message ||
+                        "Chat request failed"
+                    );
+
+                }
+
+
+                /*
+                 * Backend should return:
+                 *
+                 * {
+                 *   success: true,
+                 *   reply: "..."
+                 * }
+                 */
+
+                const reply =
+                    data.reply ||
+                    data.answer ||
+                    "I couldn't generate a response.";
+
+
+                /*
+                 * Display AI response.
+                 */
+
+                addMessage(
+                    "bot",
+                    reply
+                );
+
+
+                /*
+                 * Save AI response.
+                 */
+
+                const updatedMemory =
+                    loadMemory();
+
+
+                updatedMemory.push({
+                    role: "assistant",
+                    content: reply
+                });
+
+
+                saveMemory(
+                    updatedMemory
+                );
+
+
+                updateMemoryStatus();
+
+
+            } catch (error) {
+
+                console.error(
+                    "Chat error:",
+                    error
+                );
+
+
+                addMessage(
+                    "bot",
+                    "❌ Unable to connect to the AI server. Please make sure your backend is running on http://localhost:5000."
+                );
+
+            } finally {
+
+                hideTyping();
+
+                sendButton.disabled = false;
+
+                input.focus();
+
+            }
+
+        }
+
+
+        // ================= CLEAR MEMORY =================
+
+        function clearMemory() {
+
+            const confirmed =
+                confirm(
+                    "Clear your temporary chat memory and conversation?"
+                );
+
+
+            if (!confirmed) {
+
+                return;
+
+            }
+
+
+            sessionStorage.removeItem(
+                MEMORY_KEY
+            );
+
+
+            sessionStorage.removeItem(
+                NAME_KEY
+            );
+
+
+            /*
+             * Clear chat UI.
+             */
+
+            const chatContainer =
+                document.getElementById(
+                    "chatContainer"
+                );
+
+            chatContainer.innerHTML = "";
+
+
+            addMessage(
+                "bot",
+                "Memory cleared successfully. 🧹\n\nHello again! I'm ready for a new conversation."
+            );
+
+
+            updateMemoryStatus();
+
+        }
+
+
+        // ================= DASHBOARD =================
+
+        function goDashboard() {
+
+            window.location.href =
+                "dashboard.html";
+
+        }
+
+
+        // ================= ENTER KEY =================
+
+        document.getElementById(
+            "messageInput"
+        ).addEventListener(
+            "keydown",
+            function(event) {
+
+                if (
+                    event.key === "Enter" &&
+                    !event.shiftKey
+                ) {
+
+                    event.preventDefault();
+
+                    sendMessage();
+
+                }
+
+            }
+        );
+
+
+        // ================= AUTO RESIZE =================
+
+        document.getElementById(
+            "messageInput"
+        ).addEventListener(
+            "input",
+            function() {
+
+                this.style.height = "45px";
+
+                this.style.height =
+                    Math.min(
+                        this.scrollHeight,
+                        130
+                    ) + "px";
+
+            }
+        );
+
+
+        // ================= START =================
+
+        restoreConversation();
+
+    </script>
+
+</body>
+</html>
