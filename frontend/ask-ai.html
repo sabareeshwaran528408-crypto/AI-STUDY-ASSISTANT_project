@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Ask AI - AI Study Assistant</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+        }
+
+        body {
+            background: #f5f7fb;
+            color: #222;
+        }
+
+        .header {
+            background: #111827;
+            color: white;
+            padding: 18px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 24px;
+        }
+
+        .back-btn {
+            color: white;
+            text-decoration: none;
+            background: #2563eb;
+            padding: 10px 16px;
+            border-radius: 8px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 30px auto;
+            padding: 20px;
+        }
+
+        .card {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+            margin-bottom: 25px;
+        }
+
+        .card h2 {
+            margin-bottom: 18px;
+            color: #111827;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+
+        select,
+        textarea {
+            width: 100%;
+            padding: 13px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 15px;
+            outline: none;
+        }
+
+        select:focus,
+        textarea:focus {
+            border-color: #2563eb;
+        }
+
+        textarea {
+            min-height: 130px;
+            resize: vertical;
+        }
+
+        .ask-btn {
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 13px 25px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        .ask-btn:hover {
+            background: #1d4ed8;
+        }
+
+        .ask-btn:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+        }
+
+        .status {
+            margin-top: 15px;
+            padding: 12px;
+            border-radius: 8px;
+            display: none;
+        }
+
+        .success {
+            display: block;
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .error {
+            display: block;
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .loading {
+            display: none;
+            margin-top: 15px;
+            color: #2563eb;
+            font-weight: bold;
+        }
+
+        .answer-box {
+            background: #f9fafb;
+            border-left: 5px solid #2563eb;
+            padding: 20px;
+            border-radius: 8px;
+            white-space: pre-wrap;
+            line-height: 1.7;
+            min-height: 100px;
+        }
+
+        .empty {
+            color: #6b7280;
+        }
+
+        .sources {
+            margin-top: 20px;
+        }
+
+        .source-item {
+            background: #eef2ff;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+
+        .source-item strong {
+            color: #1e40af;
+        }
+
+        @media (max-width: 600px) {
+
+            .header {
+                padding: 15px;
+            }
+
+            .header h1 {
+                font-size: 19px;
+            }
+
+            .container {
+                margin: 15px auto;
+                padding: 10px;
+            }
+
+            .card {
+                padding: 18px;
+            }
+        }
+    </style>
+</head>
+
+
+<body>
+
+    <!-- ============================= -->
+    <!-- HEADER -->
+    <!-- ============================= -->
+
+    <header class="header">
+
+        <h1>🤖 Ask AI</h1>
+
+        <a
+            href="dashboard.html"
+            class="back-btn"
+        >
+            Dashboard
+        </a>
+
+    </header>
+
+
+    <!-- ============================= -->
+    <!-- MAIN -->
+    <!-- ============================= -->
+
+    <main class="container">
+
+
+        <!-- ============================= -->
+        <!-- ASK QUESTION -->
+        <!-- ============================= -->
+
+        <section class="card">
+
+            <h2>Ask Your Question</h2>
+
+
+            <div class="form-group">
+
+                <label for="documentSelect">
+                    Select Question Bank
+                </label>
+
+                <select id="documentSelect">
+
+                    <option value="">
+                        Loading documents...
+                    </option>
+
+                </select>
+
+            </div>
+
+
+            <div class="form-group">
+
+                <label for="question">
+                    Your Question
+                </label>
+
+                <textarea
+                    id="question"
+                    placeholder="Example: What is data visualization?"
+                ></textarea>
+
+            </div>
+
+
+            <button
+                id="askButton"
+                class="ask-btn"
+            >
+                Ask AI
+            </button>
+
+
+            <div
+                id="loading"
+                class="loading"
+            >
+                🤖 AI is thinking...
+            </div>
+
+
+            <div
+                id="status"
+                class="status"
+            ></div>
+
+        </section>
+
+
+        <!-- ============================= -->
+        <!-- AI ANSWER -->
+        <!-- ============================= -->
+
+        <section class="card">
+
+            <h2>AI Answer</h2>
+
+            <div
+                id="answerBox"
+                class="answer-box"
+            >
+
+                <div class="empty">
+                    Your AI-generated answer will appear here.
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- ============================= -->
+        <!-- SOURCES -->
+        <!-- ============================= -->
+
+        <section
+            id="sourcesSection"
+            class="card"
+            style="display: none;"
+        >
+
+            <h2>📚 Sources Used</h2>
+
+            <div id="sources"></div>
+
+        </section>
+
+
+    </main>
+
+
+<script>
+
+    // ==================================================
+    // BACKEND
+    // ==================================================
+
+    const API_BASE =
+        "http://localhost:5000";
+
+
+    // ==================================================
+    // HTML ELEMENTS
+    // ==================================================
+
+    const documentSelect =
+        window.document.getElementById(
+            "documentSelect"
+        );
+
+    const questionInput =
+        window.document.getElementById(
+            "question"
+        );
+
+    const askButton =
+        window.document.getElementById(
+            "askButton"
+        );
+
+    const loading =
+        window.document.getElementById(
+            "loading"
+        );
+
+    const statusBox =
+        window.document.getElementById(
+            "status"
+        );
+
+    const answerBox =
+        window.document.getElementById(
+            "answerBox"
+        );
+
+    const sourcesSection =
+        window.document.getElementById(
+            "sourcesSection"
+        );
+
+    const sourcesContainer =
+        window.document.getElementById(
+            "sources"
+        );
+
+
+    // ==================================================
+    // GET DOCUMENT ID FROM URL
+    // ==================================================
+
+    function getDocumentIdFromURL() {
+
+        const params =
+            new URLSearchParams(
+                window.location.search
+            );
+
+        return params.get(
+            "documentId"
+        );
+
+    }
+
+
+    // ==================================================
+    // LOAD DOCUMENTS
+    // ==================================================
+
+    async function loadDocuments() {
+
+        try {
+
+            documentSelect.innerHTML = `
+                <option value="">
+                    Loading documents...
+                </option>
+            `;
+
+
+            const response =
+                await fetch(
+                    `${API_BASE}/api/documents`
+                );
+
+
+            if (!response.ok) {
+
+                throw new Error(
+                    `HTTP ${response.status}`
+                );
+
+            }
+
+
+            const data =
+                await response.json();
+
+
+            console.log(
+                "Documents API response:",
+                data
+            );
+
+
+            const documents =
+                Array.isArray(data.documents)
+                    ? data.documents
+                    : [];
+
+
+            documentSelect.innerHTML = `
+                <option value="">
+                    Select a question bank
+                </option>
+            `;
+
+
+            if (documents.length === 0) {
+
+                documentSelect.innerHTML = `
+                    <option value="">
+                        No question banks found
+                    </option>
+                `;
+
+                showStatus(
+                    "No uploaded question banks found.",
+                    "error"
+                );
+
+                return;
+
+            }
+
+
+            // ==================================================
+            // IMPORTANT FIX
+            //
+            // Use "doc", NOT "document"
+            // ==================================================
+
+            documents.forEach(
+                function(doc) {
+
+                    const option =
+                        window.document.createElement(
+                            "option"
+                        );
+
+
+                    option.value =
+                        doc.id;
+
+
+                    option.textContent =
+                        doc.file_name ||
+                        `Document ${doc.id}`;
+
+
+                    documentSelect.appendChild(
+                        option
+                    );
+
+                }
+            );
+
+
+            // ==================================================
+            // SELECT DOCUMENT FROM URL
+            // ==================================================
+
+            const urlDocumentId =
+                getDocumentIdFromURL();
+
+
+            if (urlDocumentId) {
+
+                const matchingOption =
+                    Array.from(
+                        documentSelect.options
+                    ).find(
+                        function(option) {
+
+                            return (
+                                option.value ===
+                                String(urlDocumentId)
+                            );
+
+                        }
+                    );
+
+
+                if (matchingOption) {
+
+                    documentSelect.value =
+                        String(urlDocumentId);
+
+                }
+
+            }
+
+
+            // ==================================================
+            // OTHERWISE SELECT LATEST
+            // ==================================================
+
+            if (
+                !documentSelect.value
+            ) {
+
+                try {
+
+                    const latestResponse =
+                        await fetch(
+                            `${API_BASE}/api/documents/latest`
+                        );
+
+
+                    if (
+                        latestResponse.ok
+                    ) {
+
+                        const latestData =
+                            await latestResponse.json();
+
+
+                        console.log(
+                            "Latest document:",
+                            latestData
+                        );
+
+
+                        if (
+                            latestData.success &&
+                            latestData.document
+                        ) {
+
+                            documentSelect.value =
+                                String(
+                                    latestData.document.id
+                                );
+
+                        }
+
+                    }
+
+                } catch (latestError) {
+
+                    console.log(
+                        "Latest document error:",
+                        latestError
+                    );
+
+                }
+
+            }
+
+
+            hideStatus();
+
+
+        } catch (error) {
+
+            console.error(
+                "Document loading error:",
+                error
+            );
+
+
+            documentSelect.innerHTML = `
+                <option value="">
+                    Failed to load documents
+                </option>
+            `;
+
+
+            showStatus(
+                "Cannot connect to backend. Make sure server.js is running on port 5000.",
+                "error"
+            );
+
+        }
+
+    }
+
+
+    // ==================================================
+    // ASK AI
+    // ==================================================
+
+    async function askAI() {
+
+        const documentId =
+            documentSelect.value;
+
+
+        const question =
+            questionInput.value.trim();
+
+
+        // ==================================================
+        // VALIDATE DOCUMENT
+        // ==================================================
+
+        if (!documentId) {
+
+            showStatus(
+                "Please select a question bank.",
+                "error"
+            );
+
+            return;
+
+        }
+
+
+        // ==================================================
+        // VALIDATE QUESTION
+        // ==================================================
+
+        if (!question) {
+
+            showStatus(
+                "Please enter your question.",
+                "error"
+            );
+
+            questionInput.focus();
+
+            return;
+
+        }
+
+
+        // ==================================================
+        // LOADING UI
+        // ==================================================
+
+        askButton.disabled =
+            true;
+
+        loading.style.display =
+            "block";
+
+        hideStatus();
+
+
+        answerBox.textContent =
+            "🤖 Generating answer...";
+
+
+        sourcesSection.style.display =
+            "none";
+
+
+        sourcesContainer.innerHTML =
+            "";
+
+
+        try {
+
+            console.log(
+                "Sending AI request:",
+                {
+                    documentId:
+                        Number(documentId),
+
+                    question:
+                        question
+                }
+            );
+
+
+            // ==================================================
+            // CALL BACKEND
+            // ==================================================
+
+            const response =
+                await fetch(
+                    `${API_BASE}/api/ai/ask`,
+                    {
+
+                        method:
+                            "POST",
+
+                        headers: {
+
+                            "Content-Type":
+                                "application/json"
+
+                        },
+
+                        body:
+                            JSON.stringify({
+
+                                documentId:
+                                    Number(documentId),
+
+                                question:
+                                    question
+
+                            })
+
+                    }
+                );
+
+
+            const data =
+                await response.json();
+
+
+            console.log(
+                "AI API response:",
+                data
+            );
+
+
+            // ==================================================
+            // HANDLE ERROR
+            // ==================================================
+
+            if (!response.ok) {
+
+                throw new Error(
+                    data.message ||
+                    data.error ||
+                    `HTTP ${response.status}`
+                );
+
+            }
+
+
+            // ==================================================
+            // DISPLAY ANSWER
+            // ==================================================
+
+            if (data.answer) {
+
+                answerBox.textContent =
+                    data.answer;
+
+            } else {
+
+                answerBox.textContent =
+                    "No answer was generated.";
+
+            }
+
+
+            // ==================================================
+            // DISPLAY SOURCES
+            // ==================================================
+
+            if (
+                Array.isArray(data.sources) &&
+                data.sources.length > 0
+            ) {
+
+                sourcesContainer.innerHTML =
+                    "";
+
+
+                data.sources.forEach(
+                    function(source, index) {
+
+                        const sourceDiv =
+                            window.document.createElement(
+                                "div"
+                            );
+
+
+                        sourceDiv.className =
+                            "source-item";
+
+
+                        const chunkNumber =
+                            source.chunkIndex ??
+                            source.chunk_index ??
+                            "N/A";
+
+
+                        sourceDiv.textContent =
+                            `Source ${index + 1} — Chunk ${chunkNumber}`;
+
+
+                        sourcesContainer.appendChild(
+                            sourceDiv
+                        );
+
+                    }
+                );
+
+
+                sourcesSection.style.display =
+                    "block";
+
+            }
+
+
+            showStatus(
+                "AI answer generated successfully.",
+                "success"
+            );
+
+
+        } catch (error) {
+
+            console.error(
+                "AI request error:",
+                error
+            );
+
+
+            answerBox.textContent =
+                "❌ Failed to generate answer.\n\n" +
+                error.message;
+
+
+            showStatus(
+                "AI request failed. Check the backend terminal.",
+                "error"
+            );
+
+        } finally {
+
+            askButton.disabled =
+                false;
+
+            loading.style.display =
+                "none";
+
+        }
+
+    }
+
+
+    // ==================================================
+    // STATUS
+    // ==================================================
+
+    function showStatus(
+        message,
+        type
+    ) {
+
+        statusBox.textContent =
+            message;
+
+        statusBox.className =
+            `status ${type}`;
+
+        statusBox.style.display =
+            "block";
+
+    }
+
+
+    function hideStatus() {
+
+        statusBox.textContent =
+            "";
+
+        statusBox.className =
+            "status";
+
+        statusBox.style.display =
+            "none";
+
+    }
+
+
+    // ==================================================
+    // CTRL + ENTER
+    // ==================================================
+
+    questionInput.addEventListener(
+        "keydown",
+        function(event) {
+
+            if (
+                event.key === "Enter" &&
+                event.ctrlKey
+            ) {
+
+                askAI();
+
+            }
+
+        }
+    );
+
+
+    // ==================================================
+    // BUTTON
+    // ==================================================
+
+    askButton.addEventListener(
+        "click",
+        askAI
+    );
+
+
+    // ==================================================
+    // START
+    // ==================================================
+
+    loadDocuments();
+
+</script>
+
+</body>
+</html>
