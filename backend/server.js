@@ -1,10 +1,13 @@
-// ============================================================
-// AI STUDY ASSISTANT - BACKEND
-// ============================================================
+// =====================================================
+// AI STUDY ASSISTANT
+// BACKEND SERVER
+// Node.js + Express + MySQL + PDF Processing + Groq AI
+// =====================================================
 
-// ------------------------------------------------------------
-// IMPORTS
-// ------------------------------------------------------------
+
+// =====================================================
+// IMPORT MODULES
+// =====================================================
 
 const express = require("express");
 const cors = require("cors");
@@ -12,68 +15,55 @@ const multer = require("multer");
 const fs = require("fs");
 const path = require("path");
 const dotenv = require("dotenv");
-const pdfParse = require("pdf-parse");
-const Groq = require("groq-sdk");
+
+const { PDFParse } = require("pdf-parse");
 
 const db = require("./db");
+const Groq = require("groq-sdk");
+
+
+// =====================================================
+// LOAD ENVIRONMENT VARIABLES
+// =====================================================
 
 dotenv.config();
 
 
-// ------------------------------------------------------------
-// APP
-// ------------------------------------------------------------
-
-const app = express();
-
-
-// Railway provides PORT.
-// Local development uses 5000.
-
-const PORT = process.env.PORT || 5000;
-
-
-// ------------------------------------------------------------
-// GROQ
-// ------------------------------------------------------------
-
-if (!process.env.GROQ_API_KEY) {
-
-    console.warn(
-        "WARNING: GROQ_API_KEY is not loaded."
-    );
-
-}
+// =====================================================
+// GROQ AI
+// =====================================================
 
 const groq = new Groq({
     apiKey: process.env.GROQ_API_KEY
 });
 
-
-// Groq model
-
-const GROQ_MODEL =
-    "openai/gpt-oss-20b";
+const GROQ_MODEL = "openai/gpt-oss-20b";
 
 
-// ------------------------------------------------------------
+// =====================================================
+// EXPRESS APP
+// =====================================================
+
+const app = express();
+
+const PORT = process.env.PORT || 5000;
+
+
+// =====================================================
 // MIDDLEWARE
-// ------------------------------------------------------------
+// =====================================================
 
 app.use(
     cors({
-        origin: true,
-        credentials: true
+        origin: "*"
     })
 );
-
 
 app.use(
     express.json({
         limit: "100mb"
     })
 );
-
 
 app.use(
     express.urlencoded({
@@ -83,18 +73,17 @@ app.use(
 );
 
 
-// ------------------------------------------------------------
+// =====================================================
 // UPLOAD DIRECTORY
-// ------------------------------------------------------------
+// =====================================================
 
-const uploadsDir =
+const uploadDirectory =
     path.join(__dirname, "uploads");
 
-
-if (!fs.existsSync(uploadsDir)) {
+if (!fs.existsSync(uploadDirectory)) {
 
     fs.mkdirSync(
-        uploadsDir,
+        uploadDirectory,
         {
             recursive: true
         }
@@ -103,42 +92,53 @@ if (!fs.existsSync(uploadsDir)) {
 }
 
 
-// ------------------------------------------------------------
-// MULTER
-// ------------------------------------------------------------
+// =====================================================
+// MULTER CONFIGURATION
+// =====================================================
 
 const storage =
     multer.diskStorage({
 
-        destination:
-            function (req, file, cb) {
+        destination: function (
+            req,
+            file,
+            cb
+        ) {
 
-                cb(
-                    null,
-                    uploadsDir
+            cb(
+                null,
+                uploadDirectory
+            );
+
+        },
+
+        filename: function (
+            req,
+            file,
+            cb
+        ) {
+
+            const safeName =
+                file.originalname.replace(
+                    /[^a-zA-Z0-9._-]/g,
+                    "_"
                 );
 
-            },
+            const uniqueName =
+                Date.now() +
+                "-" +
+                Math.round(
+                    Math.random() * 100000
+                ) +
+                "-" +
+                safeName;
 
-        filename:
-            function (req, file, cb) {
+            cb(
+                null,
+                uniqueName
+            );
 
-                const timestamp =
-                    Date.now();
-
-                const safeName =
-                    file.originalname
-                        .replace(
-                            /[^a-zA-Z0-9._-]/g,
-                            "_"
-                        );
-
-                cb(
-                    null,
-                    `${timestamp}-${safeName}`
-                );
-
-            }
+        }
 
     });
 
@@ -156,22 +156,23 @@ const upload =
         },
 
         fileFilter:
-            function (req, file, cb) {
+            function (
+                req,
+                file,
+                cb
+            ) {
 
                 const isPDF =
                     file.mimetype ===
-                    "application/pdf";
+                    "application/pdf"
+                    ||
+                    file.originalname
+                        .toLowerCase()
+                        .endsWith(".pdf");
 
-                if (isPDF) {
+                if (!isPDF) {
 
-                    cb(
-                        null,
-                        true
-                    );
-
-                } else {
-
-                    cb(
+                    return cb(
                         new Error(
                             "Only PDF files are allowed."
                         )
@@ -179,230 +180,26 @@ const upload =
 
                 }
 
+                cb(
+                    null,
+                    true
+                );
+
             }
 
     });
 
 
-// ============================================================
-// HELPER FUNCTIONS
-// ============================================================
-
-
-// ------------------------------------------------------------
-// CLEAN TEXT
-// ------------------------------------------------------------
-
-function cleanText(text) {
-
-    if (!text) {
-
-        return "";
-
-    }
-
-    return text
-        .replace(/\r/g, "")
-        .replace(/[ \t]+/g, " ")
-        .replace(/\n{3,}/g, "\n\n")
-        .trim();
-
-}
-
-
-// ------------------------------------------------------------
-// CREATE CHUNKS
-// ------------------------------------------------------------
-
-function createChunks(
-    text,
-    chunkSize = 1200,
-    overlap = 150
-) {
-
-    const chunks = [];
-
-    if (!text) {
-
-        return chunks;
-
-    }
-
-
-    let start = 0;
-
-    let index = 0;
-
-
-    while (
-        start < text.length
-    ) {
-
-        const end =
-            Math.min(
-                start + chunkSize,
-                text.length
-            );
-
-
-        const chunk =
-            text
-                .slice(
-                    start,
-                    end
-                )
-                .trim();
-
-
-        if (chunk) {
-
-            chunks.push({
-
-                chunkIndex:
-                    index,
-
-                chunkText:
-                    chunk
-
-            });
-
-        }
-
-
-        index++;
-
-
-        if (end >= text.length) {
-
-            break;
-
-        }
-
-
-        start =
-            end - overlap;
-
-    }
-
-
-    return chunks;
-
-}
-
-
-// ------------------------------------------------------------
-// SEARCH SCORE
-// ------------------------------------------------------------
-
-function scoreChunk(
-    chunkText,
-    query
-) {
-
-    if (
-        !chunkText ||
-        !query
-    ) {
-
-        return 0;
-
-    }
-
-
-    const text =
-        chunkText.toLowerCase();
-
-
-    const words =
-        query
-            .toLowerCase()
-            .split(/\s+/)
-            .map(
-                word =>
-                    word.replace(
-                        /[^a-z0-9]/g,
-                        ""
-                    )
-            )
-            .filter(
-                word =>
-                    word.length > 2
-            );
-
-
-    let score = 0;
-
-
-    for (
-        const word of words
-    ) {
-
-        if (
-            text.includes(word)
-        ) {
-
-            score++;
-
-        }
-
-    }
-
-
-    // Exact phrase gets additional weight
-
-    if (
-        text.includes(
-            query.toLowerCase()
-        )
-    ) {
-
-        score += 5;
-
-    }
-
-
-    return score;
-
-}
-
-
-// ------------------------------------------------------------
-// GET DOCUMENT ID
-// ------------------------------------------------------------
-
-function getDocumentId(value) {
-
-    const id =
-        Number(value);
-
-
-    if (
-        !Number.isInteger(id) ||
-        id <= 0
-    ) {
-
-        return null;
-
-    }
-
-
-    return id;
-
-}
-
-
-// ============================================================
-// BASIC ROUTES
-// ============================================================
-
-
-// ------------------------------------------------------------
+// =====================================================
 // ROOT
-// ------------------------------------------------------------
+// =====================================================
 
 app.get(
     "/",
-    function (req, res) {
+    function (
+        req,
+        res
+    ) {
 
         res.json({
 
@@ -411,24 +208,16 @@ app.get(
             message:
                 "AI Study Assistant backend is running.",
 
-            version:
-                "2.0",
+            status:
+                "online",
 
-            features: [
+            database:
+                "MySQL",
 
-                "PDF upload",
-
-                "Browser OCR",
-
-                "Document management",
-
-                "Document search",
-
-                "Question Bank AI",
-
-                "Groq Chat Bot"
-
-            ]
+            groqAI:
+                Boolean(
+                    process.env.GROQ_API_KEY
+                )
 
         });
 
@@ -436,57 +225,267 @@ app.get(
 );
 
 
-// ------------------------------------------------------------
-// HEALTH
-// ------------------------------------------------------------
+// =====================================================
+// HEALTH CHECK
+// =====================================================
 
 app.get(
     "/api/health",
-    function (req, res) {
+    async function (
+        req,
+        res
+    ) {
 
-        res.json({
+        try {
 
-            success: true,
+            await db
+                .promise()
+                .query(
+                    "SELECT 1"
+                );
 
-            message:
-                "Backend is healthy.",
+            res.json({
 
-            port:
-                PORT,
+                success: true,
 
-            mysql:
-                "enabled",
+                backend:
+                    "online",
 
-            pdfUpload:
-                "enabled",
+                database:
+                    "connected",
 
-            browserOCR:
-                "enabled",
+                groqAI:
+                    Boolean(
+                        process.env.GROQ_API_KEY
+                    ),
 
-            documentSearch:
-                "enabled",
+                model:
+                    GROQ_MODEL
 
-            groqAI:
-                process.env.GROQ_API_KEY
-                    ? "enabled"
-                    : "disabled"
+            });
 
-        });
+        } catch (error) {
+
+            console.error(
+                "HEALTH CHECK ERROR:",
+                error
+            );
+
+            res.status(500).json({
+
+                success: false,
+
+                backend:
+                    "online",
+
+                database:
+                    "error",
+
+                groqAI:
+                    Boolean(
+                        process.env.GROQ_API_KEY
+                    )
+
+            });
+
+        }
 
     }
 );
 
 
-// ============================================================
-// DOCUMENT UPLOAD
-// ============================================================
+// =====================================================
+// CLEAN TEXT
+// =====================================================
+
+function cleanText(
+    text
+) {
+
+    if (!text) {
+
+        return "";
+
+    }
+
+    return String(text)
+
+        .replace(
+            /\r/g,
+            ""
+        )
+
+        .replace(
+            /[ \t]+/g,
+            " "
+        )
+
+        .replace(
+            /\n{4,}/g,
+            "\n\n"
+        )
+
+        .trim();
+
+}
+
+
+// =====================================================
+// CREATE CHUNKS - OPTIMIZED
+//
+// IMPORTANT:
+// The old version inserted every chunk separately.
+// That made even small PDFs slower.
+//
+// This version creates all chunks first and inserts
+// them into MySQL in batches.
+// =====================================================
+
+async function createChunks(
+    documentId,
+    text
+) {
+
+    const chunkSize =
+        1200;
+
+    const overlap =
+        150;
+
+    const step =
+        chunkSize - overlap;
+
+    const rows =
+        [];
+
+    let chunkIndex =
+        0;
+
+    let start =
+        0;
+
+
+    while (
+        start < text.length
+    ) {
+
+        const chunk =
+            text
+                .substring(
+                    start,
+                    start + chunkSize
+                )
+                .trim();
+
+
+        if (chunk.length > 0) {
+
+            rows.push([
+                documentId,
+                chunkIndex,
+                chunk
+            ]);
+
+            chunkIndex++;
+
+        }
+
+
+        start += step;
+
+    }
+
+
+    if (
+        rows.length === 0
+    ) {
+
+        return 0;
+
+    }
+
+
+    // ---------------------------------------------
+    // BATCH INSERT
+    // ---------------------------------------------
+
+    const batchSize =
+        200;
+
+
+    for (
+        let i = 0;
+        i < rows.length;
+        i += batchSize
+    ) {
+
+        const batch =
+            rows.slice(
+                i,
+                i + batchSize
+            );
+
+
+        await db
+            .promise()
+            .query(
+                `
+                INSERT INTO document_chunks
+                (
+                    document_id,
+                    chunk_index,
+                    chunk_text
+                )
+                VALUES ?
+                `,
+                [
+                    batch
+                ]
+            );
+
+    }
+
+
+    return rows.length;
+
+}
+
+
+// =====================================================
+// POST /api/documents/upload
+//
+// NORMAL PDF UPLOAD
+//
+// Frontend MUST use:
+//
+// formData.append("document", selectedFile)
+//
+// because multer expects:
+//
+// upload.single("document")
+// =====================================================
 
 app.post(
     "/api/documents/upload",
-    upload.single("file"),
-    async function (req, res) {
+
+    upload.single(
+        "document"
+    ),
+
+    async function (
+        req,
+        res
+    ) {
+
+        let filePath =
+            null;
+
 
         try {
+
+            // -----------------------------------------
+            // CHECK FILE
+            // -----------------------------------------
 
             if (!req.file) {
 
@@ -495,30 +494,44 @@ app.post(
                     success: false,
 
                     message:
-                        "No PDF file uploaded."
+                        "Please upload a PDF file."
 
                 });
 
             }
 
 
-            const userId =
-                req.body.user_id ||
-                req.body.userId ||
-                null;
-
-
-            const filePath =
+            filePath =
                 req.file.path;
 
 
-            const originalName =
+            const originalFileName =
                 req.file.originalname;
 
 
-            // ------------------------------------------------
+            console.log(
+                "----------------------------------------"
+            );
+
+            console.log(
+                "PDF received:",
+                originalFileName
+            );
+
+            console.log(
+                "File size:",
+                (
+                    req.file.size /
+                    1024 /
+                    1024
+                ).toFixed(2),
+                "MB"
+            );
+
+
+            // -----------------------------------------
             // READ PDF
-            // ------------------------------------------------
+            // -----------------------------------------
 
             const pdfBuffer =
                 fs.readFileSync(
@@ -526,49 +539,78 @@ app.post(
                 );
 
 
-            let pdfData;
+            console.log(
+                "Reading PDF..."
+            );
 
 
-            try {
+            // -----------------------------------------
+            // PDF PARSER
+            // -----------------------------------------
 
-                pdfData =
-                    await pdfParse(
-                        pdfBuffer
-                    );
-
-            } catch (pdfError) {
-
-                console.error(
-                    "PDF parsing error:",
-                    pdfError
-                );
-
-
-                return res.status(400).json({
-
-                    success: false,
-
-                    message:
-                        "Could not read this PDF."
-
+            const parser =
+                new PDFParse({
+                    data: pdfBuffer
                 });
 
-            }
+
+            const result =
+                await parser.getText();
 
 
             const extractedText =
                 cleanText(
-                    pdfData.text || ""
+                    result.text
                 );
 
 
-            // ------------------------------------------------
+            await parser.destroy();
+
+
+            console.log(
+                "Extracted characters:",
+                extractedText.length
+            );
+
+
+            // -----------------------------------------
             // SCANNED PDF
-            // ------------------------------------------------
+            // -----------------------------------------
 
             if (
                 extractedText.length < 20
             ) {
+
+                console.log(
+                    "Scanned/image PDF detected."
+                );
+
+
+                try {
+
+                    if (
+                        fs.existsSync(
+                            filePath
+                        )
+                    ) {
+
+                        fs.unlinkSync(
+                            filePath
+                        );
+
+                    }
+
+                } catch (
+                    cleanupError
+                ) {
+
+                    console.log(
+                        "Cleanup error:",
+                        cleanupError.message
+                    );
+
+                }
+
 
                 return res.status(400).json({
 
@@ -577,18 +619,25 @@ app.post(
                     scanned: true,
 
                     message:
-                        "This PDF appears to be scanned or image-based. Please use browser OCR."
+                        "Could not extract enough text from this PDF. It may be scanned/image-based. Browser OCR is required."
 
                 });
 
             }
 
 
-            // ------------------------------------------------
-            // SAVE DOCUMENT
-            // ------------------------------------------------
+            // -----------------------------------------
+            // INSERT DOCUMENT
+            // -----------------------------------------
 
-            const [documentResult] =
+            console.log(
+                "Saving document to MySQL..."
+            );
+
+
+            const [
+                documentResult
+            ] =
                 await db
                     .promise()
                     .query(
@@ -600,11 +649,12 @@ app.post(
                             file_path,
                             extracted_text
                         )
-                        VALUES (?, ?, ?, ?)
+                        VALUES
+                        (?, ?, ?, ?)
                         `,
                         [
-                            userId,
-                            originalName,
+                            null,
+                            originalFileName,
                             filePath,
                             extractedText
                         ]
@@ -615,64 +665,65 @@ app.post(
                 documentResult.insertId;
 
 
-            // ------------------------------------------------
+            console.log(
+                "Document created:",
+                documentId
+            );
+
+
+            // -----------------------------------------
             // CREATE CHUNKS
-            // ------------------------------------------------
+            // -----------------------------------------
+
+            console.log(
+                "Creating chunks..."
+            );
+
 
             const chunks =
-                createChunks(
+                await createChunks(
+                    documentId,
                     extractedText
                 );
 
 
-            for (
-                const chunk of chunks
-            ) {
-
-                await db
-                    .promise()
-                    .query(
-                        `
-                        INSERT INTO document_chunks
-                        (
-                            document_id,
-                            chunk_index,
-                            chunk_text
-                        )
-                        VALUES (?, ?, ?)
-                        `,
-                        [
-                            documentId,
-                            chunk.chunkIndex,
-                            chunk.chunkText
-                        ]
-                    );
-
-            }
+            console.log(
+                "Chunks created:",
+                chunks
+            );
 
 
-            // ------------------------------------------------
-            // RESPONSE
-            // ------------------------------------------------
+            // -----------------------------------------
+            // SUCCESS
+            // -----------------------------------------
 
-            return res.json({
+            console.log(
+                "PDF processing completed."
+            );
+
+            console.log(
+                "----------------------------------------"
+            );
+
+
+            res.json({
 
                 success: true,
 
                 message:
-                    "PDF uploaded successfully.",
+                    "PDF uploaded and processed successfully.",
 
                 documentId:
                     documentId,
 
                 fileName:
-                    originalName,
+                    originalFileName,
 
-                extractedCharacters:
+                characters:
                     extractedText.length,
 
                 chunks:
-                    chunks.length
+                    chunks
 
             });
 
@@ -680,17 +731,53 @@ app.post(
         } catch (error) {
 
             console.error(
-                "Upload error:",
+                "PDF UPLOAD ERROR:",
                 error
             );
 
 
-            return res.status(500).json({
+            // -----------------------------------------
+            // CLEAN TEMP FILE
+            // -----------------------------------------
+
+            if (
+                filePath
+            ) {
+
+                try {
+
+                    if (
+                        fs.existsSync(
+                            filePath
+                        )
+                    ) {
+
+                        fs.unlinkSync(
+                            filePath
+                        );
+
+                    }
+
+                } catch (
+                    cleanupError
+                ) {
+
+                    console.log(
+                        "Cleanup error:",
+                        cleanupError.message
+                    );
+
+                }
+
+            }
+
+
+            res.status(500).json({
 
                 success: false,
 
                 message:
-                    "Failed to upload PDF.",
+                    "Failed to process PDF.",
 
                 error:
                     error.message
@@ -703,45 +790,34 @@ app.post(
 );
 
 
-// ============================================================
-// BROWSER OCR TEXT SAVE
-// ============================================================
+// =====================================================
+// POST /api/documents/text
+//
+// BROWSER OCR
+// =====================================================
 
 app.post(
     "/api/documents/text",
-    async function (req, res) {
+    async function (
+        req,
+        res
+    ) {
 
         try {
 
             const {
                 fileName,
-                text,
-                user_id,
-                userId
+                text
             } = req.body;
 
 
-            // ------------------------------------------------
+            // -----------------------------------------
             // VALIDATION
-            // ------------------------------------------------
-
-            if (!fileName) {
-
-                return res.status(400).json({
-
-                    success: false,
-
-                    message:
-                        "fileName is required."
-
-                });
-
-            }
-
+            // -----------------------------------------
 
             if (
-                !text ||
-                !text.trim()
+                !fileName ||
+                !text
             ) {
 
                 return res.status(400).json({
@@ -749,7 +825,7 @@ app.post(
                     success: false,
 
                     message:
-                        "OCR text is empty."
+                        "File name and text are required."
 
                 });
 
@@ -778,11 +854,24 @@ app.post(
             }
 
 
-            // ------------------------------------------------
-            // SAVE DOCUMENT
-            // ------------------------------------------------
+            console.log(
+                "Saving browser OCR:",
+                fileName
+            );
 
-            const [documentResult] =
+            console.log(
+                "OCR characters:",
+                cleanedText.length
+            );
+
+
+            // -----------------------------------------
+            // INSERT DOCUMENT
+            // -----------------------------------------
+
+            const [
+                documentResult
+            ] =
                 await db
                     .promise()
                     .query(
@@ -794,17 +883,13 @@ app.post(
                             file_path,
                             extracted_text
                         )
-                        VALUES (?, ?, ?, ?)
+                        VALUES
+                        (?, ?, ?, ?)
                         `,
                         [
-                            user_id ||
-                            userId ||
                             null,
-
                             fileName,
-
-                            null,
-
+                            "browser-ocr",
                             cleanedText
                         ]
                     );
@@ -814,48 +899,34 @@ app.post(
                 documentResult.insertId;
 
 
-            // ------------------------------------------------
+            // -----------------------------------------
             // CREATE CHUNKS
-            // ------------------------------------------------
+            // -----------------------------------------
 
             const chunks =
-                createChunks(
+                await createChunks(
+                    documentId,
                     cleanedText
                 );
 
 
-            for (
-                const chunk of chunks
-            ) {
+            console.log(
+                "Browser OCR document:",
+                documentId
+            );
 
-                await db
-                    .promise()
-                    .query(
-                        `
-                        INSERT INTO document_chunks
-                        (
-                            document_id,
-                            chunk_index,
-                            chunk_text
-                        )
-                        VALUES (?, ?, ?)
-                        `,
-                        [
-                            documentId,
-                            chunk.chunkIndex,
-                            chunk.chunkText
-                        ]
-                    );
-
-            }
+            console.log(
+                "Chunks:",
+                chunks
+            );
 
 
-            return res.json({
+            res.json({
 
                 success: true,
 
                 message:
-                    "OCR document saved successfully.",
+                    "OCR text saved successfully.",
 
                 documentId:
                     documentId,
@@ -863,11 +934,11 @@ app.post(
                 fileName:
                     fileName,
 
-                extractedCharacters:
+                characters:
                     cleanedText.length,
 
                 chunks:
-                    chunks.length
+                    chunks
 
             });
 
@@ -875,17 +946,17 @@ app.post(
         } catch (error) {
 
             console.error(
-                "OCR save error:",
+                "OCR TEXT ERROR:",
                 error
             );
 
 
-            return res.status(500).json({
+            res.status(500).json({
 
                 success: false,
 
                 message:
-                    "Failed to save OCR document.",
+                    "Failed to save OCR text.",
 
                 error:
                     error.message
@@ -898,77 +969,44 @@ app.post(
 );
 
 
-// ============================================================
+// =====================================================
+// GET /api/documents
+//
 // GET ALL DOCUMENTS
-// ============================================================
+// =====================================================
 
 app.get(
     "/api/documents",
-    async function (req, res) {
+    async function (
+        req,
+        res
+    ) {
 
         try {
 
-            const userId =
-                req.query.user_id ||
-                req.query.userId ||
-                null;
+            const [
+                rows
+            ] =
+                await db
+                    .promise()
+                    .query(
+                        `
+                        SELECT
+                            id,
+                            user_id,
+                            file_name,
+                            file_path,
+                            created_at,
+                            CHAR_LENGTH(
+                                extracted_text
+                            ) AS text_length
+                        FROM documents
+                        ORDER BY id DESC
+                        `
+                    );
 
 
-            let rows;
-
-
-            if (userId) {
-
-                [
-                    rows
-                ] =
-                    await db
-                        .promise()
-                        .query(
-                            `
-                            SELECT
-                                id,
-                                user_id,
-                                file_name,
-                                file_path,
-                                created_at,
-                                CHAR_LENGTH(extracted_text)
-                                AS text_length
-                            FROM documents
-                            WHERE user_id = ?
-                            ORDER BY created_at DESC
-                            `,
-                            [
-                                userId
-                            ]
-                        );
-
-            } else {
-
-                [
-                    rows
-                ] =
-                    await db
-                        .promise()
-                        .query(
-                            `
-                            SELECT
-                                id,
-                                user_id,
-                                file_name,
-                                file_path,
-                                created_at,
-                                CHAR_LENGTH(extracted_text)
-                                AS text_length
-                            FROM documents
-                            ORDER BY created_at DESC
-                            `
-                        );
-
-            }
-
-
-            return res.json({
+            res.json({
 
                 success: true,
 
@@ -981,12 +1019,12 @@ app.get(
         } catch (error) {
 
             console.error(
-                "Get documents error:",
+                "GET DOCUMENTS ERROR:",
                 error
             );
 
 
-            return res.status(500).json({
+            res.status(500).json({
 
                 success: false,
 
@@ -1004,13 +1042,16 @@ app.get(
 );
 
 
-// ============================================================
-// GET LATEST DOCUMENT
-// ============================================================
+// =====================================================
+// GET /api/documents/latest
+// =====================================================
 
 app.get(
     "/api/documents/latest",
-    async function (req, res) {
+    async function (
+        req,
+        res
+    ) {
 
         try {
 
@@ -1026,11 +1067,10 @@ app.get(
                             user_id,
                             file_name,
                             file_path,
-                            created_at,
-                            CHAR_LENGTH(extracted_text)
-                            AS text_length
+                            extracted_text,
+                            created_at
                         FROM documents
-                        ORDER BY created_at DESC
+                        ORDER BY id DESC
                         LIMIT 1
                         `
                     );
@@ -1052,7 +1092,7 @@ app.get(
             }
 
 
-            return res.json({
+            res.json({
 
                 success: true,
 
@@ -1065,12 +1105,12 @@ app.get(
         } catch (error) {
 
             console.error(
-                "Latest document error:",
+                "LATEST DOCUMENT ERROR:",
                 error
             );
 
 
-            return res.status(500).json({
+            res.status(500).json({
 
                 success: false,
 
@@ -1088,112 +1128,200 @@ app.get(
 );
 
 
-// ============================================================
-// SEARCH DOCUMENTS
-// IMPORTANT: THIS MUST COME BEFORE /:id
-// ============================================================
+// =====================================================
+// GET /api/documents/search
+//
+// IMPORTANT:
+// This route MUST appear before /api/documents/:id
+// =====================================================
 
 app.get(
     "/api/documents/search",
-    async function (req, res) {
+    async function (
+        req,
+        res
+    ) {
 
         try {
 
-            const query =
-                String(
-                    req.query.q ||
-                    req.query.query ||
-                    ""
-                ).trim();
-
-
             const documentId =
-                getDocumentId(
+                Number(
                     req.query.documentId
                 );
 
 
-            if (!query) {
+            const query =
+                String(
+                    req.query.q || ""
+                ).trim();
+
+
+            if (
+                !Number.isInteger(
+                    documentId
+                )
+            ) {
 
                 return res.status(400).json({
 
                     success: false,
 
                     message:
-                        "Search query is required."
+                        "Valid documentId is required."
 
                 });
 
             }
 
 
-            let rows;
+            if (
+                query.length === 0
+            ) {
 
+                return res.status(400).json({
 
-            if (documentId) {
+                    success: false,
 
-                [
-                    rows
-                ] =
-                    await db
-                        .promise()
-                        .query(
-                            `
-                            SELECT
-                                id,
-                                document_id,
-                                chunk_index,
-                                chunk_text
-                            FROM document_chunks
-                            WHERE document_id = ?
-                            `,
-                            [
-                                documentId
-                            ]
-                        );
+                    message:
+                        "Search question is required."
 
-            } else {
-
-                [
-                    rows
-                ] =
-                    await db
-                        .promise()
-                        .query(
-                            `
-                            SELECT
-                                id,
-                                document_id,
-                                chunk_index,
-                                chunk_text
-                            FROM document_chunks
-                            `
-                        );
+                });
 
             }
 
 
-            const results =
-                rows
-                    .map(
-                        row => ({
-
-                            ...row,
-
-                            score:
-                                scoreChunk(
-                                    row.chunk_text,
-                                    query
-                                )
-
-                        })
+            const words =
+                query
+                    .toLowerCase()
+                    .replace(
+                        /[^a-z0-9\s]/g,
+                        " "
+                    )
+                    .split(
+                        /\s+/
                     )
                     .filter(
-                        row =>
-                            row.score > 0
+                        word =>
+                            word.length > 2
+                    );
+
+
+            if (
+                words.length === 0
+            ) {
+
+                return res.json({
+
+                    success: true,
+
+                    query:
+                        query,
+
+                    results:
+                        []
+
+                });
+
+            }
+
+
+            const [
+                chunks
+            ] =
+                await db
+                    .promise()
+                    .query(
+                        `
+                        SELECT
+                            id,
+                            document_id,
+                            chunk_index,
+                            chunk_text
+                        FROM document_chunks
+                        WHERE document_id = ?
+                        ORDER BY chunk_index ASC
+                        `,
+                        [
+                            documentId
+                        ]
+                    );
+
+
+            const scored =
+                chunks.map(
+                    chunk => {
+
+                        const lowerText =
+                            chunk.chunk_text
+                                .toLowerCase();
+
+
+                        let score =
+                            0;
+
+
+                        for (
+                            const word
+                            of words
+                        ) {
+
+                            const matches =
+                                lowerText.match(
+                                    new RegExp(
+                                        escapeRegExp(
+                                            word
+                                        ),
+                                        "g"
+                                    )
+                                );
+
+
+                            if (
+                                matches
+                            ) {
+
+                                score +=
+                                    matches.length;
+
+                            }
+
+                        }
+
+
+                        return {
+
+                            id:
+                                chunk.id,
+
+                            document_id:
+                                chunk.document_id,
+
+                            chunk_index:
+                                chunk.chunk_index,
+
+                            chunk_text:
+                                chunk.chunk_text,
+
+                            score:
+                                score
+
+                        };
+
+                    }
+                );
+
+
+            const results =
+                scored
+                    .filter(
+                        item =>
+                            item.score > 0
                     )
                     .sort(
-                        (a, b) =>
+                        (
+                            a,
+                            b
+                        ) =>
                             b.score -
                             a.score
                     )
@@ -1203,7 +1331,7 @@ app.get(
                     );
 
 
-            return res.json({
+            res.json({
 
                 success: true,
 
@@ -1219,17 +1347,17 @@ app.get(
         } catch (error) {
 
             console.error(
-                "Document search error:",
+                "DOCUMENT SEARCH ERROR:",
                 error
             );
 
 
-            return res.status(500).json({
+            res.status(500).json({
 
                 success: false,
 
                 message:
-                    "Search failed.",
+                    "Document search failed.",
 
                 error:
                     error.message
@@ -1242,23 +1370,701 @@ app.get(
 );
 
 
-// ============================================================
-// GET SINGLE DOCUMENT
-// ============================================================
+// =====================================================
+// POST /api/ai/ask
+//
+// QUESTION BANK AI
+// =====================================================
 
-app.get(
-    "/api/documents/:id",
-    async function (req, res) {
+app.post(
+    "/api/ai/ask",
+    async function (
+        req,
+        res
+    ) {
 
         try {
 
             const documentId =
-                getDocumentId(
+                Number(
+                    req.body.documentId
+                );
+
+
+            const question =
+                String(
+                    req.body.question || ""
+                ).trim();
+
+
+            if (
+                !Number.isInteger(
+                    documentId
+                )
+            ) {
+
+                return res.status(400).json({
+
+                    success: false,
+
+                    message:
+                        "Valid documentId is required."
+
+                });
+
+            }
+
+
+            if (
+                !question
+            ) {
+
+                return res.status(400).json({
+
+                    success: false,
+
+                    message:
+                        "Question is required."
+
+                });
+
+            }
+
+
+            if (
+                !process.env.GROQ_API_KEY
+            ) {
+
+                return res.status(500).json({
+
+                    success: false,
+
+                    message:
+                        "Groq API key is not configured."
+
+                });
+
+            }
+
+
+            // -----------------------------------------
+            // GET DOCUMENT
+            // -----------------------------------------
+
+            const [
+                documentRows
+            ] =
+                await db
+                    .promise()
+                    .query(
+                        `
+                        SELECT
+                            id,
+                            file_name
+                        FROM documents
+                        WHERE id = ?
+                        LIMIT 1
+                        `,
+                        [
+                            documentId
+                        ]
+                    );
+
+
+            if (
+                documentRows.length === 0
+            ) {
+
+                return res.status(404).json({
+
+                    success: false,
+
+                    message:
+                        "Document not found."
+
+                });
+
+            }
+
+
+            // -----------------------------------------
+            // QUESTION WORDS
+            // -----------------------------------------
+
+            const words =
+                question
+                    .toLowerCase()
+                    .replace(
+                        /[^a-z0-9\s]/g,
+                        " "
+                    )
+                    .split(
+                        /\s+/
+                    )
+                    .filter(
+                        word =>
+                            word.length > 2
+                    );
+
+
+            // -----------------------------------------
+            // GET CHUNKS
+            // -----------------------------------------
+
+            const [
+                chunks
+            ] =
+                await db
+                    .promise()
+                    .query(
+                        `
+                        SELECT
+                            id,
+                            document_id,
+                            chunk_index,
+                            chunk_text
+                        FROM document_chunks
+                        WHERE document_id = ?
+                        ORDER BY chunk_index ASC
+                        `,
+                        [
+                            documentId
+                        ]
+                    );
+
+
+            if (
+                chunks.length === 0
+            ) {
+
+                return res.status(404).json({
+
+                    success: false,
+
+                    message:
+                        "No processed content was found for this document."
+
+                });
+
+            }
+
+
+            // -----------------------------------------
+            // SCORE CHUNKS
+            // -----------------------------------------
+
+            const scored =
+                chunks.map(
+                    chunk => {
+
+                        const lowerText =
+                            chunk.chunk_text
+                                .toLowerCase();
+
+
+                        let score =
+                            0;
+
+
+                        for (
+                            const word
+                            of words
+                        ) {
+
+                            const matches =
+                                lowerText.match(
+                                    new RegExp(
+                                        escapeRegExp(
+                                            word
+                                        ),
+                                        "g"
+                                    )
+                                );
+
+
+                            if (
+                                matches
+                            ) {
+
+                                score +=
+                                    matches.length;
+
+                            }
+
+                        }
+
+
+                        return {
+                            ...chunk,
+                            score
+                        };
+
+                    }
+                );
+
+
+            const relevantChunks =
+                scored
+                    .filter(
+                        item =>
+                            item.score > 0
+                    )
+                    .sort(
+                        (
+                            a,
+                            b
+                        ) =>
+                            b.score -
+                            a.score
+                    )
+                    .slice(
+                        0,
+                        6
+                    );
+
+
+            if (
+                relevantChunks.length === 0
+            ) {
+
+                return res.json({
+
+                    success: true,
+
+                    question:
+                        question,
+
+                    answer:
+                        "I could not find relevant information in the selected question bank.",
+
+                    sources:
+                        []
+
+                });
+
+            }
+
+
+            // -----------------------------------------
+            // BUILD CONTEXT
+            // -----------------------------------------
+
+            const context =
+                relevantChunks
+                    .map(
+                        (
+                            item,
+                            index
+                        ) =>
+
+                            `SOURCE ${
+                                index + 1
+                            }\n${
+                                item.chunk_text
+                            }`
+                    )
+                    .join(
+                        "\n\n---\n\n"
+                    );
+
+
+            // -----------------------------------------
+            // GROQ
+            // -----------------------------------------
+
+            const completion =
+                await groq.chat.completions.create({
+
+                    model:
+                        GROQ_MODEL,
+
+                    temperature:
+                        0.2,
+
+                    max_completion_tokens:
+                        800,
+
+                    messages: [
+
+                        {
+                            role:
+                                "system",
+
+                            content:
+                                [
+                                    "You are the AI Study Assistant for a question-bank application.",
+                                    "Answer using only the provided question-bank context.",
+                                    "If the context does not contain enough information, clearly say that the answer is not available in the selected question bank.",
+                                    "Do not invent facts, questions, page numbers, or answers.",
+                                    "Give a clear, student-friendly answer."
+                                ].join(
+                                    " "
+                                )
+
+                        },
+
+                        {
+                            role:
+                                "user",
+
+                            content:
+                                `QUESTION:\n${question}\n\nQUESTION-BANK CONTEXT:\n${context}`
+
+                        }
+
+                    ]
+
+                });
+
+
+            const answer =
+                completion
+                    .choices?.[0]
+                    ?.message
+                    ?.content
+                    ?.trim()
+                ||
+                "I could not generate an answer.";
+
+
+            res.json({
+
+                success:
+                    true,
+
+                question:
+                    question,
+
+                answer:
+                    answer,
+
+                model:
+                    GROQ_MODEL,
+
+                documentId:
+                    documentId,
+
+                documentName:
+                    documentRows[0]
+                        .file_name,
+
+                sources:
+                    relevantChunks.map(
+                        item => ({
+
+                            chunkId:
+                                item.id,
+
+                            chunkIndex:
+                                item.chunk_index,
+
+                            score:
+                                item.score
+
+                        })
+                    )
+
+            });
+
+
+        } catch (error) {
+
+            console.error(
+                "GROQ AI ERROR:",
+                error
+            );
+
+
+            res.status(500).json({
+
+                success: false,
+
+                message:
+                    "AI answer generation failed.",
+
+                error:
+                    error.message
+
+            });
+
+        }
+
+    }
+);
+
+
+// =====================================================
+// POST /api/chat
+//
+// GENERAL AI CHATBOT
+//
+// Supports temporary memory sent by chatbot.html.
+//
+// Body:
+//
+// {
+//     message: "...",
+//     userName: "...",
+//     memory: [...],
+//     memorySummary: "..."
+// }
+// =====================================================
+
+app.post(
+    "/api/chat",
+    async function (
+        req,
+        res
+    ) {
+
+        try {
+
+            const message =
+                String(
+                    req.body.message || ""
+                ).trim();
+
+
+            const userName =
+                String(
+                    req.body.userName || ""
+                ).trim();
+
+
+            const memory =
+                Array.isArray(
+                    req.body.memory
+                )
+                    ? req.body.memory
+                    : [];
+
+
+            const memorySummary =
+                String(
+                    req.body.memorySummary || ""
+                ).trim();
+
+
+            if (
+                !message
+            ) {
+
+                return res.status(400).json({
+
+                    success: false,
+
+                    message:
+                        "Message is required."
+
+                });
+
+            }
+
+
+            if (
+                !process.env.GROQ_API_KEY
+            ) {
+
+                return res.status(500).json({
+
+                    success: false,
+
+                    message:
+                        "Groq API key is not configured."
+
+                });
+
+            }
+
+
+            // -----------------------------------------
+            // TEMPORARY MEMORY
+            // -----------------------------------------
+
+            const safeMemory =
+                memory
+                    .slice(-12)
+                    .map(
+                        item => ({
+
+                            role:
+                                item.role ===
+                                "assistant"
+                                    ? "assistant"
+                                    : "user",
+
+                            content:
+                                String(
+                                    item.content || ""
+                                ).slice(
+                                    0,
+                                    3000
+                                )
+
+                        })
+                    );
+
+
+            const memoryMessages =
+                safeMemory.length > 0
+                    ? safeMemory
+                    : [];
+
+
+            // -----------------------------------------
+            // SYSTEM PROMPT
+            // -----------------------------------------
+
+            const systemPrompt =
+                [
+                    "You are AI Study Assistant, a friendly student learning assistant.",
+                    "Help with programming, AI, machine learning, databases, mathematics, projects, exams, and general study questions.",
+                    "Explain concepts clearly and at a student-friendly level.",
+                    "Do not invent information.",
+                    "If the user asks about their own project, use the temporary context provided.",
+                    userName
+                        ? `The student's name is ${userName}.`
+                        : "",
+                    memorySummary
+                        ? `Temporary memory summary: ${memorySummary}`
+                        : "",
+                    "This memory is temporary for the current browser session."
+                ]
+                    .filter(
+                        Boolean
+                    )
+                    .join(
+                        " "
+                    );
+
+
+            // -----------------------------------------
+            // BUILD MESSAGES
+            // -----------------------------------------
+
+            const messages = [
+
+                {
+                    role:
+                        "system",
+
+                    content:
+                        systemPrompt
+
+                },
+
+                ...memoryMessages,
+
+                {
+                    role:
+                        "user",
+
+                    content:
+                        message
+
+                }
+
+            ];
+
+
+            // -----------------------------------------
+            // GROQ
+            // -----------------------------------------
+
+            const completion =
+                await groq.chat.completions.create({
+
+                    model:
+                        GROQ_MODEL,
+
+                    temperature:
+                        0.4,
+
+                    max_completion_tokens:
+                        1200,
+
+                    messages:
+                        messages
+
+                });
+
+
+            const reply =
+                completion
+                    .choices?.[0]
+                    ?.message
+                    ?.content
+                    ?.trim()
+                ||
+                "Sorry, I could not generate a response.";
+
+
+            res.json({
+
+                success:
+                    true,
+
+                reply:
+                    reply,
+
+                model:
+                    GROQ_MODEL
+
+            });
+
+
+        } catch (error) {
+
+            console.error(
+                "CHAT ERROR:",
+                error
+            );
+
+
+            res.status(500).json({
+
+                success: false,
+
+                message:
+                    "Chatbot response failed.",
+
+                error:
+                    error.message
+
+            });
+
+        }
+
+    }
+);
+
+
+// =====================================================
+// GET /api/documents/:id
+//
+// GET ONE DOCUMENT
+// =====================================================
+
+app.get(
+    "/api/documents/:id",
+    async function (
+        req,
+        res
+    ) {
+
+        try {
+
+            const documentId =
+                Number(
                     req.params.id
                 );
 
 
-            if (!documentId) {
+            if (
+                !Number.isInteger(
+                    documentId
+                )
+            ) {
 
                 return res.status(400).json({
 
@@ -1312,9 +2118,10 @@ app.get(
             }
 
 
-            return res.json({
+            res.json({
 
-                success: true,
+                success:
+                    true,
 
                 document:
                     rows[0]
@@ -1325,12 +2132,12 @@ app.get(
         } catch (error) {
 
             console.error(
-                "Get document error:",
+                "GET DOCUMENT ERROR:",
                 error
             );
 
 
-            return res.status(500).json({
+            res.status(500).json({
 
                 success: false,
 
@@ -1348,23 +2155,30 @@ app.get(
 );
 
 
-// ============================================================
-// DELETE DOCUMENT
-// ============================================================
+// =====================================================
+// DELETE /api/documents/:id
+// =====================================================
 
 app.delete(
     "/api/documents/:id",
-    async function (req, res) {
+    async function (
+        req,
+        res
+    ) {
 
         try {
 
             const documentId =
-                getDocumentId(
+                Number(
                     req.params.id
                 );
 
 
-            if (!documentId) {
+            if (
+                !Number.isInteger(
+                    documentId
+                )
+            ) {
 
                 return res.status(400).json({
 
@@ -1379,17 +2193,14 @@ app.delete(
 
 
             const [
-                rows
+                result
             ] =
                 await db
                     .promise()
                     .query(
                         `
-                        SELECT
-                            file_path
-                        FROM documents
+                        DELETE FROM documents
                         WHERE id = ?
-                        LIMIT 1
                         `,
                         [
                             documentId
@@ -1398,7 +2209,7 @@ app.delete(
 
 
             if (
-                rows.length === 0
+                result.affectedRows === 0
             ) {
 
                 return res.status(404).json({
@@ -1413,60 +2224,16 @@ app.delete(
             }
 
 
-            const filePath =
-                rows[0].file_path;
+            res.json({
 
-
-            // document_chunks are removed
-            // automatically because of
-            // ON DELETE CASCADE.
-
-            await db
-                .promise()
-                .query(
-                    `
-                    DELETE FROM documents
-                    WHERE id = ?
-                    `,
-                    [
-                        documentId
-                    ]
-                );
-
-
-            // ------------------------------------------------
-            // DELETE LOCAL PDF FILE
-            // ------------------------------------------------
-
-            if (
-                filePath &&
-                fs.existsSync(filePath)
-            ) {
-
-                try {
-
-                    fs.unlinkSync(
-                        filePath
-                    );
-
-                } catch (fileError) {
-
-                    console.warn(
-                        "Could not delete local file:",
-                        fileError.message
-                    );
-
-                }
-
-            }
-
-
-            return res.json({
-
-                success: true,
+                success:
+                    true,
 
                 message:
-                    "Document deleted successfully."
+                    "Document deleted successfully.",
+
+                documentId:
+                    documentId
 
             });
 
@@ -1474,12 +2241,12 @@ app.delete(
         } catch (error) {
 
             console.error(
-                "Delete document error:",
+                "DELETE DOCUMENT ERROR:",
                 error
             );
 
 
-            return res.status(500).json({
+            res.status(500).json({
 
                 success: false,
 
@@ -1497,645 +2264,45 @@ app.delete(
 );
 
 
-// ============================================================
-// ASK AI - QUESTION BANK
-// ============================================================
-
-app.post(
-    "/api/ai/ask",
-    async function (req, res) {
-
-        try {
-
-            const {
-                documentId,
-                question
-            } = req.body;
-
-
-            // ------------------------------------------------
-            // VALIDATION
-            // ------------------------------------------------
-
-            const id =
-                getDocumentId(
-                    documentId
-                );
-
-
-            if (!id) {
-
-                return res.status(400).json({
-
-                    success: false,
-
-                    message:
-                        "A valid documentId is required."
-
-                });
-
-            }
-
-
-            if (
-                !question ||
-                typeof question !== "string" ||
-                !question.trim()
-            ) {
-
-                return res.status(400).json({
-
-                    success: false,
-
-                    message:
-                        "Please enter a question."
-
-                });
-
-            }
-
-
-            const userQuestion =
-                question.trim();
-
-
-            if (
-                userQuestion.length > 5000
-            ) {
-
-                return res.status(400).json({
-
-                    success: false,
-
-                    message:
-                        "Question is too long."
-
-                });
-
-            }
-
-
-            // ------------------------------------------------
-            // GET DOCUMENT
-            // ------------------------------------------------
-
-            const [
-                documentRows
-            ] =
-                await db
-                    .promise()
-                    .query(
-                        `
-                        SELECT
-                            id,
-                            file_name
-                        FROM documents
-                        WHERE id = ?
-                        LIMIT 1
-                        `,
-                        [
-                            id
-                        ]
-                    );
-
-
-            if (
-                documentRows.length === 0
-            ) {
-
-                return res.status(404).json({
-
-                    success: false,
-
-                    message:
-                        "Document not found."
-
-                });
-
-            }
-
-
-            // ------------------------------------------------
-            // GET CHUNKS
-            // ------------------------------------------------
-
-            const [
-                chunks
-            ] =
-                await db
-                    .promise()
-                    .query(
-                        `
-                        SELECT
-                            id,
-                            document_id,
-                            chunk_index,
-                            chunk_text
-                        FROM document_chunks
-                        WHERE document_id = ?
-                        ORDER BY chunk_index ASC
-                        `,
-                        [
-                            id
-                        ]
-                    );
-
-
-            if (
-                chunks.length === 0
-            ) {
-
-                return res.json({
-
-                    success: true,
-
-                    answer:
-                        "I could not find any extracted content in this question bank.",
-
-                    sources: []
-
-                });
-
-            }
-
-
-            // ------------------------------------------------
-            // FIND RELEVANT CHUNKS
-            // ------------------------------------------------
-
-            const scoredChunks =
-                chunks
-                    .map(
-                        chunk => ({
-
-                            ...chunk,
-
-                            score:
-                                scoreChunk(
-                                    chunk.chunk_text,
-                                    userQuestion
-                                )
-
-                        })
-                    )
-                    .sort(
-                        (a, b) =>
-                            b.score -
-                            a.score
-                    );
-
-
-            const relevantChunks =
-                scoredChunks
-                    .filter(
-                        chunk =>
-                            chunk.score > 0
-                    )
-                    .slice(
-                        0,
-                        6
-                    );
-
-
-            // ------------------------------------------------
-            // NO RELEVANT CONTENT
-            // ------------------------------------------------
-
-            if (
-                relevantChunks.length === 0
-            ) {
-
-                return res.json({
-
-                    success: true,
-
-                    answer:
-                        "I could not find relevant information for this question in the uploaded question bank.",
-
-                    sources: []
-
-                });
-
-            }
-
-
-            // ------------------------------------------------
-            // BUILD CONTEXT
-            // ------------------------------------------------
-
-            const context =
-                relevantChunks
-                    .map(
-                        (chunk, index) => {
-
-                            return `
-SOURCE ${index + 1}
-Chunk ${chunk.chunk_index}
-
-${chunk.chunk_text}
-`;
-
-                        }
-                    )
-                    .join("\n--------------------\n");
-
-
-            // ------------------------------------------------
-            // GROQ
-            // ------------------------------------------------
-
-            if (
-                !process.env.GROQ_API_KEY
-            ) {
-
-                return res.status(500).json({
-
-                    success: false,
-
-                    message:
-                        "Groq API key is not configured."
-
-                });
-
-            }
-
-
-            const completion =
-                await groq.chat.completions.create({
-
-                    model:
-                        GROQ_MODEL,
-
-                    temperature:
-                        0.2,
-
-                    max_completion_tokens:
-                        1000,
-
-                    messages: [
-
-                        {
-                            role:
-                                "system",
-
-                            content:
-                                `
-You are an AI Study Assistant.
-
-Answer the student's question using ONLY the provided question-bank context.
-
-Rules:
-
-1. Do not invent information.
-2. If the answer is not available in the context, clearly say that it was not found in the uploaded document.
-3. Give a clear answer suitable for a college student.
-4. Use headings or bullet points when useful.
-5. Keep the answer focused on the student's question.
-
-Question Bank Context:
-
-${context}
-`
-                        },
-
-                        {
-                            role:
-                                "user",
-
-                            content:
-                                userQuestion
-
-                        }
-
-                    ]
-
-                });
-
-
-            const answer =
-                completion
-                    ?.choices?.[0]
-                    ?.message
-                    ?.content;
-
-
-            if (!answer) {
-
-                return res.status(500).json({
-
-                    success: false,
-
-                    message:
-                        "Groq returned an empty answer."
-
-                });
-
-            }
-
-
-            // ------------------------------------------------
-            // RESPONSE
-            // ------------------------------------------------
-
-            return res.json({
-
-                success: true,
-
-                answer:
-                    answer,
-
-                model:
-                    GROQ_MODEL,
-
-                documentId:
-                    id,
-
-                documentName:
-                    documentRows[0].file_name,
-
-                sources:
-                    relevantChunks.map(
-                        chunk => ({
-
-                            chunkId:
-                                chunk.id,
-
-                            chunkIndex:
-                                chunk.chunk_index,
-
-                            score:
-                                chunk.score
-
-                        })
-                    )
-
-            });
-
-
-        } catch (error) {
-
-            console.error(
-                "Ask AI error:",
-                error
-            );
-
-
-            return res.status(500).json({
-
-                success: false,
-
-                message:
-                    "Failed to generate AI answer.",
-
-                error:
-                    error.message
-
-            });
-
-        }
-
-    }
-);
-
-
-// ============================================================
-// GENERAL CHAT BOT - GROQ
-// ============================================================
-
-app.post(
-    "/api/chat",
-    async function (req, res) {
-
-        try {
-
-            const {
-                message
-            } = req.body;
-
-
-            // ------------------------------------------------
-            // VALIDATE
-            // ------------------------------------------------
-
-            if (
-                !message ||
-                typeof message !== "string" ||
-                !message.trim()
-            ) {
-
-                return res.status(400).json({
-
-                    success: false,
-
-                    message:
-                        "Please enter a message."
-
-                });
-
-            }
-
-
-            const userMessage =
-                message.trim();
-
-
-            if (
-                userMessage.length > 5000
-            ) {
-
-                return res.status(400).json({
-
-                    success: false,
-
-                    message:
-                        "Message is too long. Please keep it under 5000 characters."
-
-                });
-
-            }
-
-
-            // ------------------------------------------------
-            // CHECK GROQ KEY
-            // ------------------------------------------------
-
-            if (
-                !process.env.GROQ_API_KEY
-            ) {
-
-                return res.status(500).json({
-
-                    success: false,
-
-                    message:
-                        "Groq API key is not configured on the backend."
-
-                });
-
-            }
-
-
-            console.log(
-                "Chatbot question:",
-                userMessage
-            );
-
-
-            // ------------------------------------------------
-            // GROQ CHAT
-            // ------------------------------------------------
-
-            const completion =
-                await groq.chat.completions.create({
-
-                    model:
-                        GROQ_MODEL,
-
-                    temperature:
-                        0.4,
-
-                    max_completion_tokens:
-                        1200,
-
-                    messages: [
-
-                        {
-                            role:
-                                "system",
-
-                            content:
-                                `
-You are an AI Study Assistant.
-
-Help college students understand their subjects clearly.
-
-You can help with:
-
-- Programming
-- C
-- C++
-- Python
-- JavaScript
-- Artificial Intelligence
-- Machine Learning
-- Data Science
-- Algorithms
-- Data Structures
-- Databases
-- MySQL
-- Computer Networks
-- Operating Systems
-- Mathematics
-- Exam preparation
-- Project development
-- General study questions
-
-Rules:
-
-1. Explain concepts clearly and simply.
-2. Give examples when useful.
-3. For programming questions, provide correct and understandable code.
-4. For exam questions, organize answers with headings and key points.
-5. Do not invent facts.
-6. If you are uncertain, say so.
-7. Keep answers useful for a college student.
-8. This chatbot is a general AI assistant.
-9. It does not automatically know the contents of the user's uploaded PDFs.
-10. Do not claim that you searched an uploaded document unless document context was explicitly provided.
-`
-                        },
-
-                        {
-                            role:
-                                "user",
-
-                            content:
-                                userMessage
-
-                        }
-
-                    ]
-
-                });
-
-
-            // ------------------------------------------------
-            // GET RESPONSE
-            // ------------------------------------------------
-
-            const reply =
-                completion
-                    ?.choices?.[0]
-                    ?.message
-                    ?.content;
-
-
-            if (!reply) {
-
-                return res.status(500).json({
-
-                    success: false,
-
-                    message:
-                        "Groq returned an empty response."
-
-                });
-
-            }
-
-
-            // ------------------------------------------------
-            // SEND RESPONSE
-            // ------------------------------------------------
-
-            return res.json({
-
-                success: true,
-
-                reply:
-                    reply,
-
-                model:
-                    GROQ_MODEL
-
-            });
-
-
-        } catch (error) {
-
-            console.error(
-                "Groq chatbot error:",
-                error
-            );
-
-
-            return res.status(500).json({
-
-                success: false,
-
-                message:
-                    "Failed to generate AI response.",
-
-                error:
-                    error.message
-
-            });
-
-        }
-
-    }
-);
-
-
-// ============================================================
-// MULTER ERROR HANDLER
-// ============================================================
+// =====================================================
+// REGEX ESCAPE
+// =====================================================
+
+function escapeRegExp(
+    string
+) {
+
+    return String(
+        string
+    ).replace(
+        /[.*+?^${}()|[\]\\]/g,
+        "\\$&"
+    );
+
+}
+
+
+// =====================================================
+// MULTER / SERVER ERROR HANDLER
+// =====================================================
 
 app.use(
-    function (error, req, res, next) {
+    function (
+        error,
+        req,
+        res,
+        next
+    ) {
+
+        console.error(
+            "SERVER ERROR:",
+            error
+        );
+
 
         if (
-            error instanceof multer.MulterError
+            error instanceof
+            multer.MulterError
         ) {
 
             if (
@@ -2148,71 +2315,39 @@ app.use(
                     success: false,
 
                     message:
-                        "File is too large. Maximum size is 100 MB."
+                        "PDF is too large. Maximum size is 100 MB."
 
                 });
 
             }
 
 
-            return res.status(400).json({
+            if (
+                error.code ===
+                "LIMIT_UNEXPECTED_FILE"
+            ) {
 
-                success: false,
+                return res.status(400).json({
 
-                message:
-                    error.message
+                    success: false,
 
-            });
+                    message:
+                        'Unexpected upload field. Use field name "document".'
 
-        }
+                });
 
-
-        if (
-            error &&
-            error.message ===
-            "Only PDF files are allowed."
-        ) {
-
-            return res.status(400).json({
-
-                success: false,
-
-                message:
-                    error.message
-
-            });
+            }
 
         }
 
 
-        next(error);
-
-    }
-);
-
-
-// ============================================================
-// GENERAL ERROR HANDLER
-// ============================================================
-
-app.use(
-    function (error, req, res, next) {
-
-        console.error(
-            "Unhandled server error:",
-            error
-        );
-
-
-        return res.status(500).json({
+        res.status(500).json({
 
             success: false,
 
             message:
-                "Internal server error.",
-
-            error:
-                error.message
+                error.message ||
+                "Internal server error."
 
         });
 
@@ -2220,25 +2355,24 @@ app.use(
 );
 
 
-// ============================================================
+// =====================================================
 // START SERVER
-// ============================================================
+// =====================================================
 
 app.listen(
     PORT,
     function () {
 
-        console.log("");
         console.log(
-            "=========================================="
+            "========================================"
         );
 
         console.log(
-            "   AI STUDY ASSISTANT BACKEND"
+            "AI Study Assistant Backend"
         );
 
         console.log(
-            "=========================================="
+            "========================================"
         );
 
         console.log(
@@ -2246,7 +2380,7 @@ app.listen(
         );
 
         console.log(
-            "MySQL: enabled"
+            "MySQL database: configured"
         );
 
         console.log(
@@ -2258,32 +2392,36 @@ app.listen(
         );
 
         console.log(
-            "Document search: enabled"
+            "Document API: enabled"
         );
 
         console.log(
-            "Question Bank AI: " +
-            (
-                process.env.GROQ_API_KEY
-                    ? "enabled"
-                    : "disabled"
-            )
+            "Search API: enabled"
         );
 
         console.log(
-            "Groq Chat Bot: " +
-            (
-                process.env.GROQ_API_KEY
-                    ? "enabled"
-                    : "disabled"
-            )
+            "Groq AI:",
+            process.env.GROQ_API_KEY
+                ? "configured"
+                : "NOT configured"
         );
 
         console.log(
-            "=========================================="
+            "Groq model:",
+            GROQ_MODEL
         );
 
-        console.log("");
+        console.log(
+            "Chatbot API: enabled"
+        );
+
+        console.log(
+            "Optimized chunk insertion: enabled"
+        );
+
+        console.log(
+            "========================================"
+        );
 
     }
 );

@@ -1,168 +1,1720 @@
 <!DOCTYPE html>
-
 <html lang="en">
 
 <head>
+    <script src="settings.js"></script>
+    <meta charset="UTF-8">
 
-<meta charset="UTF-8">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
 
-<meta
-name="viewport"
-content="width=device-width, initial-scale=1.0"
->
+    <title>Settings - AI Study Assistant</title>
 
-<title>
-Settings - AI Study Assistant
-</title>
 
-<link
-rel="stylesheet"
-href="style.css"
->
+    <style>
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+
+        body {
+
+            font-family:
+                Arial,
+                Helvetica,
+                sans-serif;
+
+            background:
+                #f5f7fb;
+
+            color:
+                #172033;
+
+            min-height:
+                100vh;
+
+            transition:
+                background 0.3s,
+                color 0.3s;
+
+        }
+
+
+        /* =========================================
+           SIDEBAR
+        ========================================= */
+
+        .sidebar {
+
+            position: fixed;
+
+            left: 0;
+            top: 0;
+
+            width: 250px;
+            height: 100vh;
+
+            background:
+                #111827;
+
+            color: white;
+
+            padding: 24px 16px;
+
+        }
+
+
+        .brand {
+
+            display: flex;
+
+            align-items: center;
+
+            gap: 12px;
+
+            padding:
+                8px 10px 28px;
+
+        }
+
+
+        .brand-icon {
+
+            width: 42px;
+            height: 42px;
+
+            border-radius: 12px;
+
+            background:
+                #2563eb;
+
+            display: flex;
+
+            align-items: center;
+
+            justify-content: center;
+
+            font-size: 21px;
+
+        }
+
+
+        .brand-text strong {
+
+            display: block;
+
+            font-size: 16px;
+
+        }
+
+
+        .brand-text span {
+
+            color:
+                #9ca3af;
+
+            font-size: 12px;
+
+        }
+
+
+        .section-title {
+
+            color:
+                #6b7280;
+
+            font-size: 11px;
+
+            font-weight: bold;
+
+            letter-spacing:
+                1px;
+
+            padding:
+                10px 12px;
+
+        }
+
+
+        .nav {
+
+            display: block;
+
+            text-decoration: none;
+
+            color:
+                #d1d5db;
+
+            padding:
+                12px 14px;
+
+            border-radius:
+                10px;
+
+            margin:
+                4px 0;
+
+            font-size:
+                14px;
+
+            transition:
+                background 0.2s,
+                color 0.2s;
+
+        }
+
+
+        .nav:hover {
+
+            background:
+                #1f2937;
+
+            color:
+                white;
+
+        }
+
+
+        .nav.active {
+
+            background:
+                #2563eb;
+
+            color:
+                white;
+
+        }
+
+
+        /* =========================================
+           MAIN
+        ========================================= */
+
+        .main {
+
+            margin-left:
+                250px;
+
+            padding:
+                42px;
+
+            max-width:
+                1100px;
+
+        }
+
+
+        .page-header {
+
+            margin-bottom:
+                28px;
+
+        }
+
+
+        .eyebrow {
+
+            color:
+                #2563eb;
+
+            font-size:
+                12px;
+
+            font-weight:
+                bold;
+
+            letter-spacing:
+                1.5px;
+
+            margin-bottom:
+                8px;
+
+        }
+
+
+        h1 {
+
+            font-size:
+                34px;
+
+            margin-bottom:
+                8px;
+
+        }
+
+
+        .subtitle {
+
+            color:
+                #6b7280;
+
+            font-size:
+                15px;
+
+        }
+
+
+        /* =========================================
+           SETTINGS CARD
+        ========================================= */
+
+        .card {
+
+            background:
+                white;
+
+            border:
+                1px solid #e5e7eb;
+
+            border-radius:
+                16px;
+
+            margin-bottom:
+                18px;
+
+            overflow:
+                hidden;
+
+            box-shadow:
+                0 4px 15px rgba(
+                    0,
+                    0,
+                    0,
+                    0.04
+                );
+
+        }
+
+
+        .card-header {
+
+            padding:
+                20px 22px;
+
+            border-bottom:
+                1px solid #e5e7eb;
+
+        }
+
+
+        .card-header h2 {
+
+            font-size:
+                18px;
+
+            margin-bottom:
+                5px;
+
+        }
+
+
+        .card-header p {
+
+            color:
+                #6b7280;
+
+            font-size:
+                13px;
+
+        }
+
+
+        /* =========================================
+           SETTING ROW
+        ========================================= */
+
+        .setting-row {
+
+            display:
+                flex;
+
+            align-items:
+                center;
+
+            justify-content:
+                space-between;
+
+            gap:
+                20px;
+
+            padding:
+                18px 22px;
+
+            border-bottom:
+                1px solid #eef0f3;
+
+        }
+
+
+        .setting-row:last-child {
+
+            border-bottom:
+                none;
+
+        }
+
+
+        .setting-info {
+
+            flex:
+                1;
+
+        }
+
+
+        .setting-title {
+
+            font-weight:
+                600;
+
+            font-size:
+                15px;
+
+            margin-bottom:
+                4px;
+
+        }
+
+
+        .setting-description {
+
+            color:
+                #6b7280;
+
+            font-size:
+                13px;
+
+            line-height:
+                1.5;
+
+        }
+
+
+        /* =========================================
+           TOGGLE
+        ========================================= */
+
+        .switch {
+
+            position:
+                relative;
+
+            width:
+                52px;
+
+            height:
+                28px;
+
+            flex-shrink:
+                0;
+
+        }
+
+
+        .switch input {
+
+            display:
+                none;
+
+        }
+
+
+        .slider {
+
+            position:
+                absolute;
+
+            inset:
+                0;
+
+            background:
+                #d1d5db;
+
+            border-radius:
+                30px;
+
+            cursor:
+                pointer;
+
+            transition:
+                0.25s;
+
+        }
+
+
+        .slider::before {
+
+            content:
+                "";
+
+            position:
+                absolute;
+
+            width:
+                22px;
+
+            height:
+                22px;
+
+            left:
+                3px;
+
+            top:
+                3px;
+
+            background:
+                white;
+
+            border-radius:
+                50%;
+
+            transition:
+                0.25s;
+
+            box-shadow:
+                0 1px 4px
+                rgba(
+                    0,
+                    0,
+                    0,
+                    0.2
+                );
+
+        }
+
+
+        .switch input:checked + .slider {
+
+            background:
+                #2563eb;
+
+        }
+
+
+        .switch input:checked + .slider::before {
+
+            transform:
+                translateX(24px);
+
+        }
+
+
+        /* =========================================
+           SELECT
+        ========================================= */
+
+        select {
+
+            padding:
+                9px 12px;
+
+            border:
+                1px solid #d1d5db;
+
+            border-radius:
+                8px;
+
+            background:
+                white;
+
+            color:
+                #172033;
+
+            cursor:
+                pointer;
+
+            min-width:
+                130px;
+
+        }
+
+
+        /* =========================================
+           BUTTONS
+        ========================================= */
+
+        .actions {
+
+            display:
+                flex;
+
+            gap:
+                10px;
+
+            padding:
+                20px 22px;
+
+        }
+
+
+        button {
+
+            border:
+                none;
+
+            border-radius:
+                9px;
+
+            padding:
+                11px 18px;
+
+            cursor:
+                pointer;
+
+            font-weight:
+                600;
+
+        }
+
+
+        .save-button {
+
+            background:
+                #2563eb;
+
+            color:
+                white;
+
+        }
+
+
+        .reset-button {
+
+            background:
+                #fee2e2;
+
+            color:
+                #b91c1c;
+
+        }
+
+
+        .status {
+
+            padding:
+                0 22px 20px;
+
+            color:
+                #16a34a;
+
+            font-size:
+                13px;
+
+        }
+
+
+        /* =========================================
+           EYE COMFORT OVERLAY
+        ========================================= */
+
+        #eyeComfortOverlay {
+
+            position:
+                fixed;
+
+            inset:
+                0;
+
+            pointer-events:
+                none;
+
+            z-index:
+                99999;
+
+            background:
+                rgba(
+                    255,
+                    190,
+                    90,
+                    0.12
+                );
+
+            opacity:
+                0;
+
+            transition:
+                opacity 0.3s;
+
+        }
+
+
+        body.eye-comfort
+        #eyeComfortOverlay {
+
+            opacity:
+                1;
+
+        }
+
+
+        /* =========================================
+           DARK MODE
+        ========================================= */
+
+        body.dark {
+
+            background:
+                #0f172a;
+
+            color:
+                #f8fafc;
+
+        }
+
+
+        body.dark .card {
+
+            background:
+                #1e293b;
+
+            border-color:
+                #334155;
+
+        }
+
+
+        body.dark .card-header {
+
+            border-color:
+                #334155;
+
+        }
+
+
+        body.dark .setting-row {
+
+            border-color:
+                #334155;
+
+        }
+
+
+        body.dark .setting-description,
+        body.dark .subtitle,
+        body.dark .card-header p {
+
+            color:
+                #94a3b8;
+
+        }
+
+
+        body.dark select {
+
+            background:
+                #0f172a;
+
+            color:
+                #f8fafc;
+
+            border-color:
+                #475569;
+
+        }
+
+
+        /* =========================================
+           COMPACT MODE
+        ========================================= */
+
+        body.compact .setting-row {
+
+            padding:
+                11px 18px;
+
+        }
+
+
+        body.compact .card-header {
+
+            padding:
+                15px 18px;
+
+        }
+
+
+        body.compact .main {
+
+            padding:
+                28px;
+
+        }
+
+
+        /* =========================================
+           REDUCE MOTION
+        ========================================= */
+
+        body.reduce-motion *,
+        body.reduce-motion *::before,
+        body.reduce-motion *::after {
+
+            transition:
+                none !important;
+
+            animation:
+                none !important;
+
+        }
+
+
+        /* =========================================
+           FONT SIZE
+        ========================================= */
+
+        body.font-small {
+
+            font-size:
+                90%;
+
+        }
+
+
+        body.font-large {
+
+            font-size:
+                110%;
+
+        }
+
+
+        /* =========================================
+           RESPONSIVE
+        ========================================= */
+
+        @media (
+            max-width: 800px
+        ) {
+
+            .sidebar {
+
+                width:
+                    210px;
+
+            }
+
+            .main {
+
+                margin-left:
+                    210px;
+
+                padding:
+                    25px;
+
+            }
+
+        }
+
+
+        @media (
+            max-width: 650px
+        ) {
+
+            .sidebar {
+
+                position:
+                    relative;
+
+                width:
+                    100%;
+
+                height:
+                    auto;
+
+            }
+
+            .main {
+
+                margin-left:
+                    0;
+
+                padding:
+                    20px;
+
+            }
+
+            .setting-row {
+
+                align-items:
+                    flex-start;
+
+            }
+
+        }
+
+    </style>
 
 </head>
 
 
 <body>
 
-
-<header>
-
-<div class="logo">
-AI Study Assistant
-</div>
+<div id="eyeComfortOverlay"></div>
 
 
-<div class="status">
-
-<span
-id="statusDot"
-class="dot">
-</span>
-
-<span id="statusText">
-Checking...
-</span>
-
-</div>
-
-</header>
-
-
-
-<div class="layout">
-
+<!-- =========================================
+     SIDEBAR
+========================================= -->
 
 <aside class="sidebar">
 
-<div class="sidebar-title">
-STUDY
-</div>
+    <div class="brand">
+
+        <div class="brand-icon">
+            🤖
+        </div>
+
+        <div class="brand-text">
+
+            <strong>
+                AI Study
+            </strong>
+
+            <span>
+                Assistant
+            </span>
+
+        </div>
+
+    </div>
 
 
-<a
-href="index.html"
-class="nav"
->
-🏠 Dashboard
-</a>
+    <div class="section-title">
+        STUDY
+    </div>
 
 
-<a
-href="documents.html"
-class="nav"
->
-📚 My Documents
-</a>
+    <nav>
+
+        <a
+            href="index.html"
+            class="nav"
+        >
+            🏠 Dashboard
+        </a>
 
 
-<a
-href="ask-ai.html"
-class="nav"
->
-🤖 Ask AI
-</a>
+        <a
+            href="documents.html"
+            class="nav"
+        >
+            📚 My Documents
+        </a>
 
 
-<a
-href="history.html"
-class="nav"
->
-🕘 Study History
-</a>
+        <a
+            href="ask-ai.html"
+            class="nav"
+        >
+            🤖 Ask AI
+        </a>
 
 
-<a
-href="tools.html"
-class="nav"
->
-🛠️ Study Tools
-</a>
+        <a
+            href="chatbot.html"
+            class="nav"
+        >
+            💬 Chat Bot
+        </a>
 
 
-<a
-href="settings.html"
-class="nav active"
->
-⚙️ Settings
-</a>
+        <a
+            href="history.html"
+            class="nav"
+        >
+            🕘 Study History
+        </a>
+
+
+        <a
+            href="tools.html"
+            class="nav"
+        >
+            🛠️ Study Tools
+        </a>
+
+
+        <a
+            href="settings.html"
+            class="nav active"
+        >
+            ⚙️ Settings
+        </a>
+
+    </nav>
 
 </aside>
 
 
+<!-- =========================================
+     MAIN
+========================================= -->
 
-<main>
+<main class="main">
 
-<h1>
-Settings
-</h1>
+    <section class="page-header">
 
+        <div class="eyebrow">
+            PREFERENCES
+        </div>
 
-<p class="subtitle">
-AI Study Assistant configuration.
-</p>
+        <h1>
+            Settings
+        </h1>
 
+        <p class="subtitle">
+            Customize your AI Study Assistant experience.
+        </p>
 
-<div class="card">
-
-<p>
-<strong>Backend:</strong>
-Railway
-</p>
-
-
-<p>
-<strong>Database:</strong>
-Railway MySQL
-</p>
+    </section>
 
 
-<p>
-<strong>PDF Parser:</strong>
-pdf-parse
-</p>
+    <!-- =====================================
+         APPEARANCE
+    ====================================== -->
+
+    <section class="card">
+
+        <div class="card-header">
+
+            <h2>
+                🎨 Appearance
+            </h2>
+
+            <p>
+                Adjust how the application looks.
+            </p>
+
+        </div>
 
 
-<p>
-<strong>OCR:</strong>
-PDF.js + Tesseract.js
-</p>
+        <!-- DARK MODE -->
+
+        <div class="setting-row">
+
+            <div class="setting-info">
+
+                <div class="setting-title">
+                    Dark Mode
+                </div>
+
+                <div class="setting-description">
+                    Use a darker interface for studying in low-light environments.
+                </div>
+
+            </div>
 
 
-<p class="small">
-The current version does not require an OpenAI, Grok, DeepSeek, or Ollama API key.
-</p>
+            <label class="switch">
 
-</div>
+                <input
+                    type="checkbox"
+                    id="darkMode"
+                >
+
+                <span class="slider"></span>
+
+            </label>
+
+        </div>
+
+
+        <!-- FONT SIZE -->
+
+        <div class="setting-row">
+
+            <div class="setting-info">
+
+                <div class="setting-title">
+                    Text Size
+                </div>
+
+                <div class="setting-description">
+                    Change the size of text throughout the settings interface.
+                </div>
+
+            </div>
+
+
+            <select id="fontSize">
+
+                <option value="medium">
+                    Medium
+                </option>
+
+                <option value="small">
+                    Small
+                </option>
+
+                <option value="large">
+                    Large
+                </option>
+
+            </select>
+
+        </div>
+
+
+        <!-- COMPACT -->
+
+        <div class="setting-row">
+
+            <div class="setting-info">
+
+                <div class="setting-title">
+                    Compact Layout
+                </div>
+
+                <div class="setting-description">
+                    Reduce spacing to show more content on the screen.
+                </div>
+
+            </div>
+
+
+            <label class="switch">
+
+                <input
+                    type="checkbox"
+                    id="compactMode"
+                >
+
+                <span class="slider"></span>
+
+            </label>
+
+        </div>
+
+    </section>
+
+
+    <!-- =====================================
+         STUDY COMFORT
+    ====================================== -->
+
+    <section class="card">
+
+        <div class="card-header">
+
+            <h2>
+                👁️ Study Comfort
+            </h2>
+
+            <p>
+                Options designed to make longer study sessions more comfortable.
+            </p>
+
+        </div>
+
+
+        <!-- EYE COMFORT -->
+
+        <div class="setting-row">
+
+            <div class="setting-info">
+
+                <div class="setting-title">
+                    Eye Comfort Mode
+                </div>
+
+                <div class="setting-description">
+                    Adds a subtle warm screen tint to reduce harsh-looking white tones.
+                </div>
+
+            </div>
+
+
+            <label class="switch">
+
+                <input
+                    type="checkbox"
+                    id="eyeComfort"
+                >
+
+                <span class="slider"></span>
+
+            </label>
+
+        </div>
+
+
+        <!-- REDUCE MOTION -->
+
+        <div class="setting-row">
+
+            <div class="setting-info">
+
+                <div class="setting-title">
+                    Reduce Motion
+                </div>
+
+                <div class="setting-description">
+                    Reduce animations and transitions.
+                </div>
+
+            </div>
+
+
+            <label class="switch">
+
+                <input
+                    type="checkbox"
+                    id="reduceMotion"
+                >
+
+                <span class="slider"></span>
+
+            </label>
+
+        </div>
+
+    </section>
+
+
+    <!-- =====================================
+         GENERAL
+    ====================================== -->
+
+    <section class="card">
+
+        <div class="card-header">
+
+            <h2>
+                ⚙️ General
+            </h2>
+
+            <p>
+                Manage basic application preferences.
+            </p>
+
+        </div>
+
+
+        <!-- NOTIFICATIONS -->
+
+        <div class="setting-row">
+
+            <div class="setting-info">
+
+                <div class="setting-title">
+                    Notifications
+                </div>
+
+                <div class="setting-description">
+                    Allow study reminders and application notifications.
+                </div>
+
+            </div>
+
+
+            <label class="switch">
+
+                <input
+                    type="checkbox"
+                    id="notifications"
+                >
+
+                <span class="slider"></span>
+
+            </label>
+
+        </div>
+
+
+        <!-- AUTO SAVE -->
+
+        <div class="setting-row">
+
+            <div class="setting-info">
+
+                <div class="setting-title">
+                    Auto Save Preferences
+                </div>
+
+                <div class="setting-description">
+                    Automatically save changes when a setting is modified.
+                </div>
+
+            </div>
+
+
+            <label class="switch">
+
+                <input
+                    type="checkbox"
+                    id="autoSave"
+                    checked
+                >
+
+                <span class="slider"></span>
+
+            </label>
+
+        </div>
+
+    </section>
+
+
+    <!-- =====================================
+         ACTIONS
+    ====================================== -->
+
+    <section class="card">
+
+        <div class="card-header">
+
+            <h2>
+                💾 Save Settings
+            </h2>
+
+            <p>
+                Your preferences are stored locally in this browser.
+            </p>
+
+        </div>
+
+
+        <div class="actions">
+
+            <button
+                class="save-button"
+                onclick="saveSettings()"
+            >
+                💾 Save Settings
+            </button>
+
+
+            <button
+                class="reset-button"
+                onclick="resetSettings()"
+            >
+                ↩ Reset
+            </button>
+
+        </div>
+
+
+        <div
+            id="status"
+            class="status"
+        ></div>
+
+    </section>
 
 </main>
 
-</div>
+
+<script>
+
+    /* =========================================
+       DEFAULT SETTINGS
+    ========================================= */
+
+    const DEFAULT_SETTINGS = {
+
+        darkMode:
+            false,
+
+        eyeComfort:
+            false,
+
+        fontSize:
+            "medium",
+
+        compactMode:
+            false,
+
+        reduceMotion:
+            false,
+
+        notifications:
+            true,
+
+        autoSave:
+            true
+
+    };
 
 
+    /* =========================================
+       GET SETTINGS
+    ========================================= */
 
-<script
-src="app.js">
+    function getSettings() {
+
+        try {
+
+            const saved =
+                localStorage.getItem(
+                    "aiStudyAssistantSettings"
+                );
+
+
+            if (!saved) {
+
+                return {
+                    ...DEFAULT_SETTINGS
+                };
+
+            }
+
+
+            return {
+
+                ...DEFAULT_SETTINGS,
+
+                ...JSON.parse(
+                    saved
+                )
+
+            };
+
+        } catch (error) {
+
+            return {
+                ...DEFAULT_SETTINGS
+            };
+
+        }
+
+    }
+
+
+    /* =========================================
+       SAVE SETTINGS
+    ========================================= */
+
+    function saveSettings(
+        showMessage = true
+    ) {
+
+        const settings = {
+
+            darkMode:
+                document.getElementById(
+                    "darkMode"
+                ).checked,
+
+            eyeComfort:
+                document.getElementById(
+                    "eyeComfort"
+                ).checked,
+
+            fontSize:
+                document.getElementById(
+                    "fontSize"
+                ).value,
+
+            compactMode:
+                document.getElementById(
+                    "compactMode"
+                ).checked,
+
+            reduceMotion:
+                document.getElementById(
+                    "reduceMotion"
+                ).checked,
+
+            notifications:
+                document.getElementById(
+                    "notifications"
+                ).checked,
+
+            autoSave:
+                document.getElementById(
+                    "autoSave"
+                ).checked
+
+        };
+
+
+        localStorage.setItem(
+            "aiStudyAssistantSettings",
+            JSON.stringify(
+                settings
+            )
+        );
+
+
+        applySettings(
+            settings
+        );
+
+
+        if (
+            showMessage
+        ) {
+
+            showStatus(
+                "✓ Settings saved successfully."
+            );
+
+        }
+
+    }
+
+
+    /* =========================================
+       APPLY SETTINGS
+    ========================================= */
+
+    function applySettings(
+        settings
+    ) {
+
+        document.body.classList.toggle(
+            "dark",
+            settings.darkMode
+        );
+
+
+        document.body.classList.toggle(
+            "eye-comfort",
+            settings.eyeComfort
+        );
+
+
+        document.body.classList.toggle(
+            "compact",
+            settings.compactMode
+        );
+
+
+        document.body.classList.toggle(
+            "reduce-motion",
+            settings.reduceMotion
+        );
+
+
+        document.body.classList.remove(
+            "font-small",
+            "font-large"
+        );
+
+
+        if (
+            settings.fontSize ===
+            "small"
+        ) {
+
+            document.body.classList.add(
+                "font-small"
+            );
+
+        }
+
+
+        if (
+            settings.fontSize ===
+            "large"
+        ) {
+
+            document.body.classList.add(
+                "font-large"
+            );
+
+        }
+
+    }
+
+
+    /* =========================================
+       LOAD SETTINGS INTO UI
+    ========================================= */
+
+    function loadSettings() {
+
+        const settings =
+            getSettings();
+
+
+        document.getElementById(
+            "darkMode"
+        ).checked =
+            settings.darkMode;
+
+
+        document.getElementById(
+            "eyeComfort"
+        ).checked =
+            settings.eyeComfort;
+
+
+        document.getElementById(
+            "fontSize"
+        ).value =
+            settings.fontSize;
+
+
+        document.getElementById(
+            "compactMode"
+        ).checked =
+            settings.compactMode;
+
+
+        document.getElementById(
+            "reduceMotion"
+        ).checked =
+            settings.reduceMotion;
+
+
+        document.getElementById(
+            "notifications"
+        ).checked =
+            settings.notifications;
+
+
+        document.getElementById(
+            "autoSave"
+        ).checked =
+            settings.autoSave;
+
+
+        applySettings(
+            settings
+        );
+
+    }
+
+
+    /* =========================================
+       AUTO SAVE
+    ========================================= */
+
+    function settingChanged() {
+
+        const autoSave =
+            document.getElementById(
+                "autoSave"
+            ).checked;
+
+
+        if (
+            autoSave
+        ) {
+
+            saveSettings(
+                false
+            );
+
+
+            showStatus(
+                "✓ Preference updated."
+            );
+
+        } else {
+
+            showStatus(
+                "Preference changed. Click Save Settings."
+            );
+
+        }
+
+    }
+
+
+    /* =========================================
+       STATUS MESSAGE
+    ========================================= */
+
+    function showStatus(
+        message
+    ) {
+
+        const status =
+            document.getElementById(
+                "status"
+            );
+
+
+        status.textContent =
+            message;
+
+
+        clearTimeout(
+            window.statusTimer
+        );
+
+
+        window.statusTimer =
+            setTimeout(
+                function () {
+
+                    status.textContent =
+                        "";
+
+                },
+                2500
+            );
+
+    }
+
+
+    /* =========================================
+       RESET
+    ========================================= */
+
+    function resetSettings() {
+
+        const confirmReset =
+            confirm(
+                "Reset all AI Study Assistant settings?"
+            );
+
+
+        if (
+            !confirmReset
+        ) {
+
+            return;
+
+        }
+
+
+        localStorage.removeItem(
+            "aiStudyAssistantSettings"
+        );
+
+
+        loadSettings();
+
+
+        showStatus(
+            "✓ Settings reset successfully."
+        );
+
+    }
+
+
+    /* =========================================
+       EVENT LISTENERS
+    ========================================= */
+
+    document.querySelectorAll(
+        "input, select"
+    ).forEach(
+        function (element) {
+
+            element.addEventListener(
+                "change",
+                settingChanged
+            );
+
+        }
+    );
+
+
+    /* =========================================
+       START
+    ========================================= */
+
+    loadSettings();
+
 </script>
 
 

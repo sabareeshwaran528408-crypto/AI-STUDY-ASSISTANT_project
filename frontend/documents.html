@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
+    <script src="settings.js"></script>
     <title>My Documents - AI Study Assistant</title>
 
     <!-- PDF.js -->
@@ -16,245 +16,326 @@
     <style>
         * {
             box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: Arial, sans-serif;
         }
 
         body {
-            background: #f5f7fb;
-            color: #111827;
+            margin: 0;
+            font-family: Arial, Helvetica, sans-serif;
+            background: #f4f7fb;
+            color: #172033;
         }
 
-        .header {
+        /* =========================
+           SIDEBAR
+        ========================= */
+
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 200px;
+            height: 100vh;
             background: #111827;
             color: white;
-            padding: 18px 30px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            padding: 22px 12px;
+            z-index: 1000;
         }
 
-        .header h1 {
-            font-size: 24px;
+        .logo {
+            font-size: 20px;
+            font-weight: bold;
+            line-height: 1.25;
+            color: white;
+            padding: 0 12px;
+            margin-bottom: 35px;
+        }
+
+        .logo span {
+            color: #3b82f6;
+        }
+
+        .nav {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .nav a {
+            text-decoration: none;
+            color: #d1d5db;
+            padding: 11px 13px;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: 0.2s;
+        }
+
+        .nav a:hover {
+            background: #1f2937;
+            color: white;
+        }
+
+        .nav a.active {
+            background: #2563eb;
+            color: white;
+        }
+
+        /* =========================
+           MAIN
+        ========================= */
+
+        .main {
+            margin-left: 200px;
+            min-height: 100vh;
+        }
+
+        .topbar {
+            height: 65px;
+            background: white;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 28px;
+        }
+
+        .topbar h1 {
+            margin: 0;
+            font-size: 22px;
         }
 
         .dashboard-btn {
             background: #2563eb;
             color: white;
             text-decoration: none;
-            padding: 10px 17px;
-            border-radius: 8px;
+            padding: 9px 16px;
+            border-radius: 7px;
+            font-size: 14px;
         }
 
-        .container {
+        .content {
+            padding: 28px;
             max-width: 1100px;
-            margin: 30px auto;
-            padding: 20px;
+            margin: auto;
         }
+
+        /* =========================
+           UPLOAD CARD
+        ========================= */
 
         .card {
             background: white;
-            padding: 25px;
-            border-radius: 15px;
-            margin-bottom: 25px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+            border-radius: 14px;
+            padding: 24px;
+            margin-bottom: 22px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
         }
 
         .card h2 {
-            margin-bottom: 20px;
+            margin-top: 0;
+            font-size: 20px;
         }
 
         .upload-area {
             border: 2px dashed #2563eb;
             border-radius: 12px;
-            padding: 35px;
+            padding: 30px;
             text-align: center;
             background: #f8faff;
         }
 
         .upload-area p {
-            margin-bottom: 15px;
-            color: #6b7280;
-        }
-
-        .file-input {
-            display: none;
-        }
-
-        .choose-btn {
-            display: inline-block;
-            background: #2563eb;
-            color: white;
-            padding: 12px 20px;
-            border-radius: 8px;
-            cursor: pointer;
-        }
-
-        .choose-btn:hover {
-            background: #1d4ed8;
+            color: #64748b;
+            margin: 8px 0;
         }
 
         .file-name {
-            margin-top: 15px;
+            margin: 18px 0;
             font-weight: bold;
+            color: #172033;
+            word-break: break-word;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        button {
+            border: none;
+            cursor: pointer;
+            font-family: inherit;
+        }
+
+        .choose-btn {
+            background: #2563eb;
+            color: white;
+            padding: 10px 18px;
+            border-radius: 7px;
+            font-size: 14px;
         }
 
         .upload-btn {
-            margin-top: 15px;
             background: #16a34a;
             color: white;
-            border: none;
-            padding: 12px 22px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 15px;
-        }
-
-        .upload-btn:hover {
-            background: #15803d;
+            padding: 10px 18px;
+            border-radius: 7px;
+            font-size: 14px;
         }
 
         .upload-btn:disabled {
-            background: #9ca3af;
+            background: #94a3b8;
             cursor: not-allowed;
         }
 
         .progress-container {
-            display: none;
+            width: 100%;
+            height: 10px;
+            background: #e5e7eb;
+            border-radius: 20px;
+            overflow: hidden;
             margin-top: 20px;
         }
 
         .progress-bar {
-            width: 100%;
-            height: 12px;
-            background: #e5e7eb;
-            border-radius: 10px;
-            overflow: hidden;
-        }
-
-        .progress {
-            width: 0%;
             height: 100%;
+            width: 0%;
             background: #2563eb;
             transition: width 0.2s;
         }
 
-        .progress-text {
-            margin-top: 8px;
-            font-size: 14px;
-            color: #4b5563;
-        }
-
         .status {
-            display: none;
-            margin-top: 15px;
-            padding: 12px;
-            border-radius: 8px;
+            margin-top: 12px;
+            color: #475569;
+            font-size: 14px;
+            line-height: 1.6;
         }
 
-        .success {
-            display: block;
-            background: #dcfce7;
-            color: #166534;
+        /* =========================
+           BACKEND STATUS
+        ========================= */
+
+        .backend-status {
+            display: inline-block;
+            padding: 7px 12px;
+            background: #f1f5f9;
+            border-radius: 7px;
+            font-size: 13px;
+            margin-bottom: 18px;
         }
 
-        .error {
-            display: block;
-            background: #fee2e2;
-            color: #991b1b;
-        }
+        /* =========================
+           DOCUMENT GRID
+        ========================= */
 
-        .documents {
+        .documents-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 18px;
+            grid-template-columns: repeat(
+                auto-fit,
+                minmax(240px, 1fr)
+            );
+            gap: 16px;
         }
 
         .document-card {
-            border: 1px solid #e5e7eb;
-            border-radius: 12px;
-            padding: 18px;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 16px;
             background: white;
         }
 
         .document-icon {
-            font-size: 35px;
-            margin-bottom: 10px;
+            font-size: 30px;
+            margin-bottom: 8px;
         }
 
         .document-name {
             font-weight: bold;
+            font-size: 14px;
+            line-height: 1.4;
             word-break: break-word;
             margin-bottom: 8px;
         }
 
-        .document-date {
-            font-size: 13px;
-            color: #6b7280;
-            margin-bottom: 15px;
+        .document-info {
+            font-size: 12px;
+            color: #64748b;
+            line-height: 1.6;
         }
 
         .document-actions {
             display: flex;
             gap: 8px;
+            margin-top: 14px;
         }
 
         .ask-btn {
             background: #2563eb;
             color: white;
-            text-decoration: none;
-            padding: 9px 14px;
-            border-radius: 7px;
-            font-size: 14px;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
         }
 
         .delete-btn {
             background: #dc2626;
             color: white;
-            border: none;
-            padding: 9px 14px;
-            border-radius: 7px;
-            cursor: pointer;
-            font-size: 14px;
-        }
-
-        .delete-btn:hover {
-            background: #b91c1c;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
         }
 
         .empty {
             text-align: center;
-            color: #6b7280;
-            padding: 30px;
+            padding: 35px;
+            color: #64748b;
         }
 
-        .loading {
-            text-align: center;
-            padding: 30px;
-            color: #2563eb;
+        /* =========================
+           LATEST DOCUMENT
+        ========================= */
+
+        .latest-box {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 18px;
+            line-height: 1.7;
         }
 
-        @media (max-width: 600px) {
-            .header {
+        .latest-box h3 {
+            margin-top: 0;
+        }
+
+        /* =========================
+           RESPONSIVE
+        ========================= */
+
+        @media (max-width: 750px) {
+
+            .sidebar {
+                position: static;
+                width: 100%;
+                height: auto;
+            }
+
+            .logo {
+                margin-bottom: 15px;
+            }
+
+            .nav {
+                flex-direction: row;
+                flex-wrap: wrap;
+            }
+
+            .main {
+                margin-left: 0;
+            }
+
+            .topbar {
+                padding: 0 15px;
+            }
+
+            .content {
                 padding: 15px;
-            }
-
-            .header h1 {
-                font-size: 19px;
-            }
-
-            .container {
-                padding: 10px;
-                margin: 15px auto;
-            }
-
-            .card {
-                padding: 18px;
-            }
-
-            .upload-area {
-                padding: 25px 15px;
             }
         }
     </style>
@@ -262,115 +343,201 @@
 
 <body>
 
-<header class="header">
+<!-- =====================================================
+     SIDEBAR
+===================================================== -->
 
-    <h1>📚 My Documents</h1>
+<aside class="sidebar">
 
-    <a href="dashboard.html" class="dashboard-btn">
-        Dashboard
-    </a>
+    <div class="logo">
+        AI <span>Study</span><br>
+        Assistant
+    </div>
 
-</header>
+    <nav class="nav">
+
+        <a href="dashboard.html">
+            🏠 Dashboard
+        </a>
+
+        <a href="documents.html" class="active">
+            📄 My Documents
+        </a>
+
+        <a href="ask-ai.html">
+            🔎 Ask AI
+        </a>
+
+        <a href="chatbot.html">
+            🤖 Chat Bot
+        </a>
+
+        <a href="history.html">
+            📜 History
+        </a>
+
+        <a href="tools.html">
+            🛠️ Study Tools
+        </a>
+
+        <a href="settings.html">
+            ⚙️ Settings
+        </a>
+
+    </nav>
+
+</aside>
 
 
-<main class="container">
+<!-- =====================================================
+     MAIN
+===================================================== -->
 
-    <!-- ============================= -->
-    <!-- UPLOAD -->
-    <!-- ============================= -->
+<main class="main">
 
-    <section class="card">
+    <header class="topbar">
 
-        <h2>📄 Upload Question Bank</h2>
+        <h1>
+            📚 My Documents
+        </h1>
 
-        <div class="upload-area">
+        <a
+            href="dashboard.html"
+            class="dashboard-btn"
+        >
+            Dashboard
+        </a>
 
-            <p>
-                Upload your PDF question bank.
-            </p>
+    </header>
 
-            <p>
-                Maximum file size: 100 MB
-            </p>
 
-            <label for="pdfFile" class="choose-btn">
-                Choose PDF
-            </label>
+    <section class="content">
 
-            <input
-                type="file"
-                id="pdfFile"
-                class="file-input"
-                accept="application/pdf,.pdf"
-            >
+        <!-- BACKEND STATUS -->
 
-            <div
-                id="fileName"
-                class="file-name"
-            >
-                No file selected
-            </div>
-
-            <button
-                id="uploadButton"
-                class="upload-btn"
-                disabled
-            >
-                Upload PDF
-            </button>
-
+        <div
+            id="backendStatus"
+            class="backend-status"
+        >
+            🔄 Checking backend...
         </div>
 
 
-        <!-- Progress -->
+        <!-- =================================================
+             UPLOAD
+        ================================================== -->
 
-        <div
-            id="progressContainer"
-            class="progress-container"
-        >
+        <div class="card">
 
-            <div class="progress-bar">
+            <h2>
+                📄 Upload Question Bank
+            </h2>
+
+            <div class="upload-area">
+
+                <p>
+                    Upload your PDF question bank.
+                </p>
+
+                <p>
+                    Maximum file size: 100 MB
+                </p>
+
+                <input
+                    type="file"
+                    id="fileInput"
+                    accept="application/pdf,.pdf"
+                >
+
+                <button
+                    id="chooseBtn"
+                    class="choose-btn"
+                    type="button"
+                >
+                    Choose PDF
+                </button>
 
                 <div
-                    id="progress"
-                    class="progress"
+                    id="fileName"
+                    class="file-name"
+                >
+                    No file selected
+                </div>
+
+                <button
+                    id="uploadBtn"
+                    class="upload-btn"
+                    type="button"
+                >
+                    Upload PDF
+                </button>
+
+            </div>
+
+
+            <div class="progress-container">
+
+                <div
+                    id="progressBar"
+                    class="progress-bar"
                 ></div>
 
             </div>
 
+
             <div
-                id="progressText"
-                class="progress-text"
+                id="status"
+                class="status"
             >
-                Preparing upload...
+                Select a PDF to begin.
             </div>
 
         </div>
 
 
-        <div
-            id="status"
-            class="status"
-        ></div>
+        <!-- =================================================
+             LATEST DOCUMENT
+        ================================================== -->
 
-    </section>
+        <div class="card">
+
+            <div
+                id="latestDocument"
+                class="latest-box"
+            >
+
+                <h3>
+                    Latest Document
+                </h3>
+
+                <p>
+                    No document loaded yet.
+                </p>
+
+            </div>
+
+        </div>
 
 
-    <!-- ============================= -->
-    <!-- DOCUMENT LIST -->
-    <!-- ============================= -->
+        <!-- =================================================
+             DOCUMENT LIST
+        ================================================== -->
 
-    <section class="card">
+        <div class="card">
 
-        <h2>📚 Uploaded Question Banks</h2>
+            <h2>
+                📚 Uploaded Question Banks
+            </h2>
 
-        <div
-            id="documents"
-            class="documents"
-        >
+            <div
+                id="documentsList"
+                class="documents-grid"
+            >
 
-            <div class="loading">
-                Loading documents...
+                <div class="empty">
+                    Loading documents...
+                </div>
+
             </div>
 
         </div>
@@ -380,180 +547,248 @@
 </main>
 
 
-<script>
+<script type="module">
 
-    // ==================================================
-    // IMPORTANT
-    // SAME BACKEND AS ASK AI
-    // ==================================================
+/* =====================================================
+   PDF.JS
+===================================================== */
 
-   const API_BASE = "http://localhost:5000";
-    // ==================================================
-    // ELEMENTS
-    // ==================================================
+import * as pdfjsLib
+    from "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs";
 
-    const pdfFile =
-        document.getElementById("pdfFile");
-
-    const fileName =
-        document.getElementById("fileName");
-
-    const uploadButton =
-        document.getElementById("uploadButton");
-
-    const documentsContainer =
-        document.getElementById("documents");
-
-    const statusBox =
-        document.getElementById("status");
-
-    const progressContainer =
-        document.getElementById("progressContainer");
-
-    const progress =
-        document.getElementById("progress");
-
-    const progressText =
-        document.getElementById("progressText");
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
 
 
-    // ==================================================
-    // FILE SELECTED
-    // ==================================================
+/* =====================================================
+   API
+===================================================== */
 
-    pdfFile.addEventListener(
-        "change",
-        function () {
+/*
+ * LOCAL TESTING
+ *
+ * Keep this while using:
+ * http://localhost:3000
+ */
 
-            const file =
-                pdfFile.files[0];
-
-
-            if (!file) {
-
-                fileName.textContent =
-                    "No file selected";
-
-                uploadButton.disabled =
-                    true;
-
-                return;
-            }
+const API_BASE =
+    "http://localhost:5000";
 
 
-            if (
-                file.type !== "application/pdf" &&
-                !file.name.toLowerCase().endsWith(".pdf")
-            ) {
-
-                showStatus(
-                    "Please select a PDF file.",
-                    "error"
-                );
-
-                pdfFile.value = "";
-
-                fileName.textContent =
-                    "No file selected";
-
-                uploadButton.disabled =
-                    true;
-
-                return;
-            }
+/*
+ * FOR VERCEL DEPLOYMENT LATER:
+ *
+ * Change only the above line to:
+ *
+ * const API_BASE =
+ *     "https://ai-study-assistant-production-ce2c.up.railway.app";
+ */
 
 
-            // 100 MB limit
+/* =====================================================
+   ELEMENTS
+===================================================== */
 
-            const maxSize =
-                100 * 1024 * 1024;
+const fileInput =
+    document.getElementById(
+        "fileInput"
+    );
 
+const chooseBtn =
+    document.getElementById(
+        "chooseBtn"
+    );
 
-            if (file.size > maxSize) {
+const uploadBtn =
+    document.getElementById(
+        "uploadBtn"
+    );
 
-                showStatus(
-                    "PDF size must be less than 100 MB.",
-                    "error"
-                );
+const fileName =
+    document.getElementById(
+        "fileName"
+    );
 
-                pdfFile.value = "";
+const statusBox =
+    document.getElementById(
+        "status"
+    );
 
-                fileName.textContent =
-                    "No file selected";
+const progressBar =
+    document.getElementById(
+        "progressBar"
+    );
 
-                uploadButton.disabled =
-                    true;
+const documentsList =
+    document.getElementById(
+        "documentsList"
+    );
 
-                return;
-            }
+const latestDocument =
+    document.getElementById(
+        "latestDocument"
+    );
 
-
-            fileName.textContent =
-                `${file.name} (${formatFileSize(file.size)})`;
-
-            uploadButton.disabled =
-                false;
-
-            hideStatus();
-
-        }
+const backendStatus =
+    document.getElementById(
+        "backendStatus"
     );
 
 
-    // ==================================================
-    // UPLOAD BUTTON
-    // ==================================================
-
-    uploadButton.addEventListener(
-        "click",
-        uploadPDF
-    );
+let selectedFile = null;
 
 
-    // ==================================================
-    // UPLOAD PDF
-    // ==================================================
+/* =====================================================
+   CHOOSE PDF
+===================================================== */
 
-    async function uploadPDF() {
+chooseBtn.addEventListener(
+    "click",
+    function () {
 
-        const file =
-            pdfFile.files[0];
+        fileInput.click();
+
+    }
+);
 
 
-        if (!file) {
+/* =====================================================
+   FILE SELECT
+===================================================== */
 
-            showStatus(
-                "Please select a PDF first.",
-                "error"
-            );
+fileInput.addEventListener(
+    "change",
+    function () {
+
+        selectedFile =
+            fileInput.files[0];
+
+        if (!selectedFile) {
+
+            fileName.innerHTML =
+                "No file selected";
 
             return;
         }
 
 
-        uploadButton.disabled =
-            true;
+        const isPDF =
+            selectedFile.type ===
+                "application/pdf"
+            ||
+            selectedFile.name
+                .toLowerCase()
+                .endsWith(".pdf");
 
-        progressContainer.style.display =
-            "block";
 
-        setProgress(
-            10,
-            "Uploading PDF..."
-        );
+        if (!isPDF) {
 
-        hideStatus();
+            selectedFile = null;
+
+            fileName.innerHTML =
+                "No file selected";
+
+            statusBox.innerHTML =
+                "❌ Please select a PDF file.";
+
+            return;
+        }
+
+
+        const sizeMB =
+            (
+                selectedFile.size /
+                1024 /
+                1024
+            ).toFixed(2);
+
+
+        if (
+            selectedFile.size >
+            100 * 1024 * 1024
+        ) {
+
+            selectedFile = null;
+
+            fileName.innerHTML =
+                "No file selected";
+
+            statusBox.innerHTML =
+                "❌ File is larger than 100 MB.";
+
+            return;
+        }
+
+
+        fileName.innerHTML =
+            `${escapeHTML(
+                selectedFile.name
+            )} (${sizeMB} MB)`;
+
+
+        statusBox.innerHTML =
+            "✅ PDF selected. Click Upload PDF.";
+
+
+        progressBar.style.width =
+            "0%";
+
+    }
+);
+
+
+/* =====================================================
+   UPLOAD PDF
+===================================================== */
+
+uploadBtn.addEventListener(
+    "click",
+    async function () {
+
+        if (!selectedFile) {
+
+            statusBox.innerHTML =
+                "❌ Please choose a PDF first.";
+
+            return;
+        }
+
+
+        uploadBtn.disabled = true;
+
+        progressBar.style.width =
+            "10%";
 
 
         try {
+
+            statusBox.innerHTML =
+                "⏳ Uploading PDF to backend...";
+
+
+            /*
+             * IMPORTANT:
+             *
+             * Backend:
+             *
+             * upload.single("document")
+             *
+             * Therefore frontend MUST use:
+             *
+             * formData.append("document", selectedFile)
+             */
 
             const formData =
                 new FormData();
 
             formData.append(
-                "pdf",
-                file
+                "document",
+                selectedFile
             );
+
+
+            progressBar.style.width =
+                "25%";
 
 
             const response =
@@ -566,8 +801,18 @@
                 );
 
 
-            const data =
-                await response.json();
+            let data = {};
+
+            try {
+
+                data =
+                    await response.json();
+
+            } catch {
+
+                data = {};
+
+            }
 
 
             console.log(
@@ -576,617 +821,736 @@
             );
 
 
-            /*
-             * IMPORTANT:
-             *
-             * If the backend says the PDF is scanned,
-             * browser OCR will be used.
-             */
+            /* =========================================
+               SUCCESS
+            ========================================== */
 
             if (
-                response.status === 400 &&
-                data.scanned === true
+                response.ok &&
+                data.success
             ) {
 
-                setProgress(
-                    15,
-                    "Scanned PDF detected. Starting OCR..."
-                );
+                progressBar.style.width =
+                    "100%";
 
 
-                await performOCR(
-                    file
-                );
+                statusBox.innerHTML =
+                    `
+                    ✅ PDF processed successfully!<br>
+                    Document ID:
+                    ${data.documentId || "created"}<br>
+                    Extracted characters:
+                    ${
+                        Number(
+                            data.characters || 0
+                        ).toLocaleString()
+                    }<br>
+                    Chunks:
+                    ${data.chunks || 0}
+                    `;
+
+
+                await loadDocuments();
+
+                await loadLatestDocument();
+
+
+                /*
+                 * Reset selected file
+                 */
+
+                selectedFile = null;
+
+                fileInput.value = "";
+
+                fileName.innerHTML =
+                    "No file selected";
+
+
+                uploadBtn.disabled =
+                    false;
 
 
                 return;
             }
 
 
-            if (!response.ok) {
+            /* =========================================
+               SCANNED PDF
+            ========================================== */
 
-                throw new Error(
-                    data.message ||
-                    data.error ||
-                    "PDF upload failed."
+            const serverMessage =
+                String(
+                    data.message || ""
+                ).toLowerCase();
+
+
+            if (
+                response.status === 400 &&
+                (
+                    data.scanned === true ||
+                    serverMessage.includes(
+                        "scanned"
+                    ) ||
+                    serverMessage.includes(
+                        "image"
+                    ) ||
+                    serverMessage.includes(
+                        "extract"
+                    )
+                )
+            ) {
+
+                statusBox.innerHTML =
+                    `
+                    📷 Scanned PDF detected.<br>
+                    Starting browser OCR...<br>
+                    Please keep this tab open.
+                    `;
+
+
+                await runBrowserOCR(
+                    selectedFile
                 );
 
+
+                uploadBtn.disabled =
+                    false;
+
+                return;
             }
 
 
-            setProgress(
-                100,
-                "Upload completed!"
-            );
+            /* =========================================
+               ERROR
+            ========================================== */
+
+            progressBar.style.width =
+                "0%";
 
 
-            showStatus(
-                "PDF uploaded successfully.",
-                "success"
-            );
-
-
-            pdfFile.value = "";
-
-            fileName.textContent =
-                "No file selected";
-
-
-            uploadButton.disabled =
-                true;
-
-
-            // Reload document list
-
-            await loadDocuments();
+            statusBox.innerHTML =
+                `
+                ❌ Upload failed.<br>
+                ${
+                    escapeHTML(
+                        data.message ||
+                        "Unknown server error"
+                    )
+                }
+                `;
 
 
         } catch (error) {
 
             console.error(
-                "Upload error:",
+                "UPLOAD ERROR:",
                 error
             );
 
 
-            showStatus(
-                error.message ||
-                "Failed to upload PDF.",
-                "error"
-            );
+            progressBar.style.width =
+                "0%";
 
 
-            setProgress(
-                0,
-                "Upload failed."
-            );
-
-
-        } finally {
-
-            uploadButton.disabled =
-                false;
+            statusBox.innerHTML =
+                `
+                ❌ Upload failed.<br>
+                ${
+                    escapeHTML(
+                        error.message
+                    )
+                }
+                `;
 
         }
 
+
+        uploadBtn.disabled =
+            false;
+
     }
+);
 
 
-    // ==================================================
-    // OCR FOR SCANNED PDF
-    // ==================================================
+/* =====================================================
+   BROWSER OCR
+===================================================== */
 
-    async function performOCR(file) {
+async function runBrowserOCR(
+    file
+) {
 
-        try {
-
-            if (
-                typeof Tesseract === "undefined"
-            ) {
-
-                throw new Error(
-                    "OCR library failed to load."
-                );
-
-            }
+    let worker = null;
 
 
-            /*
-             * PDF.js module is loaded separately.
-             * We use browser PDF rendering through
-             * the global PDF.js module if available.
-             */
+    try {
 
-            setProgress(
-                20,
-                "Preparing scanned PDF..."
+        statusBox.innerHTML =
+            "📖 Reading PDF pages...";
+
+
+        progressBar.style.width =
+            "5%";
+
+
+        const arrayBuffer =
+            await file.arrayBuffer();
+
+
+        const pdf =
+            await pdfjsLib.getDocument({
+                data: arrayBuffer
+            }).promise;
+
+
+        const totalPages =
+            pdf.numPages;
+
+
+        statusBox.innerHTML =
+            `
+            📄 PDF loaded:
+            ${totalPages} pages.<br>
+            Starting OCR...
+            `;
+
+
+        /*
+         * One worker is reused for all pages.
+         */
+
+        worker =
+            await Tesseract.createWorker(
+                "eng"
             );
 
 
-            /*
-             * For very large scanned PDFs,
-             * OCR can use significant memory.
-             */
-
-            const arrayBuffer =
-                await file.arrayBuffer();
+        let completeText =
+            "";
 
 
-            let pdf;
+        for (
+            let pageNumber = 1;
+            pageNumber <= totalPages;
+            pageNumber++
+        ) {
 
-
-            try {
-
-                /*
-                 * Try dynamic PDF.js import.
-                 */
-
-                const pdfjsLib =
-                    await import(
-                        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs"
-                    );
-
-
-                pdfjsLib.GlobalWorkerOptions.workerSrc =
-                    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
-
-
-                pdf =
-                    await pdfjsLib.getDocument({
-                        data: arrayBuffer
-                    }).promise;
-
-
-            } catch (pdfError) {
-
-                console.error(
-                    "PDF.js error:",
-                    pdfError
+            const percentage =
+                Math.round(
+                    (
+                        pageNumber /
+                        totalPages
+                    ) * 90
                 );
 
-                throw new Error(
-                    "Could not read the scanned PDF in the browser."
+
+            progressBar.style.width =
+                `${percentage}%`;
+
+
+            statusBox.innerHTML =
+                `
+                🔎 OCR processing page
+                ${pageNumber}
+                of
+                ${totalPages}...
+                <br>
+                ${percentage}% complete
+                `;
+
+
+            const page =
+                await pdf.getPage(
+                    pageNumber
                 );
-
-            }
-
-
-            const totalPages =
-                pdf.numPages;
-
-
-            let fullText = "";
 
 
             /*
-             * Create OCR worker
+             * 1.25 scale reduces memory usage.
              */
 
-            setProgress(
-                25,
-                `Starting OCR... 0/${totalPages} pages`
+            const viewport =
+                page.getViewport({
+                    scale: 1.25
+                });
+
+
+            const canvas =
+                document.createElement(
+                    "canvas"
+                );
+
+
+            const context =
+                canvas.getContext(
+                    "2d"
+                );
+
+
+            canvas.width =
+                Math.floor(
+                    viewport.width
+                );
+
+
+            canvas.height =
+                Math.floor(
+                    viewport.height
+                );
+
+
+            await page.render({
+
+                canvasContext:
+                    context,
+
+                viewport:
+                    viewport
+
+            }).promise;
+
+
+            const result =
+                await worker.recognize(
+                    canvas
+                );
+
+
+            const pageText =
+                result.data.text || "";
+
+
+            completeText +=
+                `
+
+--- PAGE ${pageNumber} ---
+
+${pageText}`;
+
+
+            /*
+             * Release canvas memory.
+             */
+
+            canvas.width = 1;
+            canvas.height = 1;
+
+        }
+
+
+        if (worker) {
+
+            await worker.terminate();
+
+            worker = null;
+
+        }
+
+
+        completeText =
+            cleanOCRText(
+                completeText
             );
 
 
-            const worker =
-                await Tesseract.createWorker(
-                    "eng"
-                );
+        if (
+            completeText.length < 20
+        ) {
+
+            progressBar.style.width =
+                "0%";
 
 
-            try {
+            statusBox.innerHTML =
+                `
+                ❌ OCR could not read
+                enough text from this PDF.
+                `;
 
-                for (
-                    let pageNumber = 1;
-                    pageNumber <= totalPages;
-                    pageNumber++
-                ) {
-
-                    const page =
-                        await pdf.getPage(
-                            pageNumber
-                        );
+            return;
+        }
 
 
-                    const viewport =
-                        page.getViewport({
-                            scale: 1.5
-                        });
+        progressBar.style.width =
+            "95%";
 
 
-                    const canvas =
-                        document.createElement(
-                            "canvas"
-                        );
+        statusBox.innerHTML =
+            `
+            ✅ OCR completed.<br>
+            Extracted
+            ${completeText.length.toLocaleString()}
+            characters.<br>
+            Saving to MySQL...
+            `;
 
 
-                    const context =
-                        canvas.getContext(
-                            "2d"
-                        );
+        /*
+         * Save OCR text to backend.
+         */
 
+        const saveResponse =
+            await fetch(
+                `${API_BASE}/api/documents/text`,
+                {
+                    method: "POST",
 
-                    canvas.width =
-                        viewport.width;
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
 
-                    canvas.height =
-                        viewport.height;
-
-
-                    await page.render({
-                        canvasContext:
-                            context,
-                        viewport:
-                            viewport
-                    }).promise;
-
-
-                    const image =
-                        canvas.toDataURL(
-                            "image/png"
-                        );
-
-
-                    const result =
-                        await worker.recognize(
-                            image
-                        );
-
-
-                    if (
-                        result &&
-                        result.data &&
-                        result.data.text
-                    ) {
-
-                        fullText +=
-                            "\n\n" +
-                            `--- Page ${pageNumber} ---\n\n` +
-                            result.data.text;
-
-                    }
-
-
-                    const percent =
-                        25 +
-                        Math.round(
-                            (pageNumber /
-                                totalPages) *
-                            65
-                        );
-
-
-                    setProgress(
-                        percent,
-                        `OCR processing: ${pageNumber}/${totalPages} pages`
-                    );
-
-
-                    /*
-                     * Release canvas memory
-                     */
-
-                    canvas.width = 1;
-
-                    canvas.height = 1;
-
-                }
-
-            } finally {
-
-                await worker.terminate();
-
-            }
-
-
-            if (
-                !fullText.trim()
-            ) {
-
-                throw new Error(
-                    "OCR could not extract any text from this PDF."
-                );
-
-            }
-
-
-            setProgress(
-                92,
-                "Saving OCR text..."
-            );
-
-
-            /*
-             * Save OCR text to backend
-             */
-
-            const response =
-                await fetch(
-                    `${API_BASE}/api/documents/text`,
-                    {
-                        method: "POST",
-
-                        headers: {
-                            "Content-Type":
-                                "application/json"
-                        },
-
-                        body: JSON.stringify({
+                    body:
+                        JSON.stringify({
 
                             fileName:
                                 file.name,
 
                             text:
-                                fullText
+                                completeText
 
                         })
-
-                    }
-                );
-
-
-            const data =
-                await response.json();
-
-
-            console.log(
-                "OCR save response:",
-                data
-            );
-
-
-            if (!response.ok) {
-
-                throw new Error(
-                    data.message ||
-                    data.error ||
-                    "Failed to save OCR text."
-                );
-
-            }
-
-
-            setProgress(
-                100,
-                "OCR completed!"
-            );
-
-
-            showStatus(
-                "Scanned PDF processed successfully using OCR.",
-                "success"
-            );
-
-
-            pdfFile.value = "";
-
-            fileName.textContent =
-                "No file selected";
-
-
-            uploadButton.disabled =
-                true;
-
-
-            await loadDocuments();
-
-
-        } catch (error) {
-
-            console.error(
-                "OCR error:",
-                error
-            );
-
-
-            showStatus(
-                "OCR failed: " +
-                error.message,
-                "error"
-            );
-
-
-            setProgress(
-                0,
-                "OCR failed."
-            );
-
-        }
-
-    }
-
-
-    // ==================================================
-    // LOAD DOCUMENTS
-    // ==================================================
-
-    async function loadDocuments() {
-
-        documentsContainer.innerHTML = `
-            <div class="loading">
-                Loading documents...
-            </div>
-        `;
-
-
-        try {
-
-            const response =
-                await fetch(
-                    `${API_BASE}/api/documents`
-                );
-
-
-            if (!response.ok) {
-
-                throw new Error(
-                    `HTTP ${response.status}`
-                );
-
-            }
-
-
-            const data =
-                await response.json();
-
-
-            console.log(
-                "Documents:",
-                data
-            );
-
-
-            const documents =
-                data.documents || [];
-
-
-            if (
-                documents.length === 0
-            ) {
-
-                documentsContainer.innerHTML = `
-                    <div class="empty">
-                        No documents uploaded yet.
-                    </div>
-                `;
-
-                return;
-            }
-
-
-            documentsContainer.innerHTML =
-                "";
-
-
-            documents.forEach(
-                document => {
-
-                    const card =
-                        createDocumentCard(
-                            document
-                        );
-
-                    documentsContainer.appendChild(
-                        card
-                    );
 
                 }
             );
 
 
-        } catch (error) {
+        let saveData = {};
 
-            console.error(
-                "Document loading error:",
-                error
-            );
+        try {
 
+            saveData =
+                await saveResponse.json();
 
-            documentsContainer.innerHTML = `
-                <div class="empty">
-                    ❌ Cannot connect to backend.
-                    <br><br>
-                    Make sure server.js is running on port 5000.
-                </div>
-            `;
+        } catch {
+
+            saveData = {};
 
         }
 
+
+        if (
+            !saveResponse.ok ||
+            !saveData.success
+        ) {
+
+            throw new Error(
+                saveData.message ||
+                "OCR text could not be saved."
+            );
+        }
+
+
+        progressBar.style.width =
+            "100%";
+
+
+        statusBox.innerHTML =
+            `
+            🎉 PDF processed successfully!<br>
+            OCR text saved to MySQL.<br>
+            Document ID:
+            ${saveData.documentId}
+            `;
+
+
+        await loadDocuments();
+
+        await loadLatestDocument();
+
+
+        selectedFile = null;
+
+        fileInput.value = "";
+
+        fileName.innerHTML =
+            "No file selected";
+
+
+    } catch (error) {
+
+        console.error(
+            "OCR ERROR:",
+            error
+        );
+
+
+        if (worker) {
+
+            try {
+
+                await worker.terminate();
+
+            } catch {
+
+                // ignore
+
+            }
+
+        }
+
+
+        progressBar.style.width =
+            "0%";
+
+
+        statusBox.innerHTML =
+            `
+            ❌ OCR failed.<br>
+            ${escapeHTML(
+                error.message
+            )}
+            `;
+
     }
 
-
-    // ==================================================
-    // CREATE DOCUMENT CARD
-    // ==================================================
-
-    function createDocumentCard(document) {
-
-        const card =
-            document.createElement ?
-            document.createElement("div") :
-            null;
+}
 
 
-        /*
-         * Use browser document object explicitly.
-         */
+/* =====================================================
+   CLEAN OCR TEXT
+===================================================== */
 
-        const div =
-            window.document.createElement(
-                "div"
+function cleanOCRText(
+    text
+) {
+
+    return String(text || "")
+        .replace(
+            /\r/g,
+            ""
+        )
+        .replace(
+            /[ \t]+/g,
+            " "
+        )
+        .replace(
+            /\n{4,}/g,
+            "\n\n"
+        )
+        .trim();
+
+}
+
+
+/* =====================================================
+   LOAD DOCUMENTS
+===================================================== */
+
+async function loadDocuments() {
+
+    try {
+
+        documentsList.innerHTML =
+            `
+            <div class="empty">
+                🔄 Loading documents...
+            </div>
+            `;
+
+
+        const response =
+            await fetch(
+                `${API_BASE}/api/documents`
             );
 
 
-        div.className =
-            "document-card";
+        const data =
+            await response.json();
 
 
-        const date =
-            document.created_at
-                ? new Date(
-                    document.created_at
-                ).toLocaleString()
-                : "Unknown date";
+        if (
+            !response.ok ||
+            !data.success
+        ) {
+
+            throw new Error(
+                data.message ||
+                "Could not load documents."
+            );
+        }
 
 
-        div.innerHTML = `
+        const documents =
+            data.documents || [];
+
+
+        if (
+            documents.length === 0
+        ) {
+
+            documentsList.innerHTML =
+                `
+                <div class="empty">
+                    📂 No documents uploaded yet.
+                </div>
+                `;
+
+            return;
+        }
+
+
+        documentsList.innerHTML =
+            documents
+                .map(
+                    doc =>
+                        createDocumentCard(
+                            doc
+                        )
+                )
+                .join("");
+
+
+    } catch (error) {
+
+        console.error(
+            "LOAD DOCUMENTS ERROR:",
+            error
+        );
+
+
+        documentsList.innerHTML =
+            `
+            <div class="empty">
+                ❌ Failed to load documents.<br>
+                ${escapeHTML(
+                    error.message
+                )}
+            </div>
+            `;
+
+    }
+
+}
+
+
+/* =====================================================
+   DOCUMENT CARD
+===================================================== */
+
+function createDocumentCard(
+    doc
+) {
+
+    const date =
+        doc.created_at
+            ? new Date(
+                doc.created_at
+            ).toLocaleString()
+            : "Unknown";
+
+
+    const textLength =
+        Number(
+            doc.text_length || 0
+        ).toLocaleString();
+
+
+    return `
+
+        <div class="document-card">
 
             <div class="document-icon">
                 📄
             </div>
 
             <div class="document-name">
-                ${escapeHtml(
-                    document.file_name ||
-                    "Untitled PDF"
+                ${escapeHTML(
+                    doc.file_name
                 )}
             </div>
 
-            <div class="document-date">
-                Uploaded: ${date}
+            <div class="document-info">
+
+                Uploaded:
+                ${escapeHTML(date)}
+
+                <br>
+
+                Text:
+                ${textLength}
+                characters
+
+                <br>
+
+                Document ID:
+                ${doc.id}
+
             </div>
 
             <div class="document-actions">
 
-                <a
+                <button
                     class="ask-btn"
-                    href="ask-ai.html?documentId=${document.id}"
+                    type="button"
+                    onclick="askAI(${doc.id})"
                 >
                     🤖 Ask AI
-                </a>
+                </button>
 
                 <button
                     class="delete-btn"
-                    onclick="deleteDocument(${document.id})"
+                    type="button"
+                    onclick="deleteDocument(${doc.id})"
                 >
                     Delete
                 </button>
 
             </div>
-        `;
+
+        </div>
+
+    `;
+
+}
 
 
-        return div;
+/* =====================================================
+   ASK AI
+===================================================== */
 
-    }
+window.askAI =
+    function (
+        documentId
+    ) {
+
+        /*
+         * Store selected document ID
+         * so Ask AI page can use it.
+         */
+
+        sessionStorage.setItem(
+            "selectedDocumentId",
+            String(documentId)
+        );
 
 
-    // ==================================================
-    // DELETE DOCUMENT
-    // ==================================================
+        window.location.href =
+            `ask-ai.html?documentId=${encodeURIComponent(
+                documentId
+            )}`;
 
-    async function deleteDocument(id) {
+    };
 
-        const confirmDelete =
+
+/* =====================================================
+   DELETE DOCUMENT
+===================================================== */
+
+window.deleteDocument =
+    async function (
+        documentId
+    ) {
+
+        const confirmed =
             confirm(
                 "Are you sure you want to delete this document?"
             );
 
 
-        if (!confirmDelete) {
-
+        if (!confirmed) {
             return;
-
         }
 
 
@@ -1194,7 +1558,7 @@
 
             const response =
                 await fetch(
-                    `${API_BASE}/api/documents/${id}`,
+                    `${API_BASE}/api/documents/${documentId}`,
                     {
                         method: "DELETE"
                     }
@@ -1205,164 +1569,242 @@
                 await response.json();
 
 
-            if (!response.ok) {
+            if (
+                !response.ok ||
+                !data.success
+            ) {
 
                 throw new Error(
                     data.message ||
-                    data.error ||
                     "Delete failed."
                 );
-
             }
 
 
-            showStatus(
-                "Document deleted successfully.",
-                "success"
-            );
+            statusBox.innerHTML =
+                "🗑️ Document deleted successfully.";
 
 
             await loadDocuments();
+
+            await loadLatestDocument();
 
 
         } catch (error) {
 
             console.error(
-                "Delete error:",
+                "DELETE ERROR:",
                 error
             );
 
 
-            showStatus(
-                error.message ||
-                "Failed to delete document.",
-                "error"
-            );
+            statusBox.innerHTML =
+                `
+                ❌ Delete failed.<br>
+                ${escapeHTML(
+                    error.message
+                )}
+                `;
 
         }
 
-    }
+    };
 
 
-    // ==================================================
-    // PROGRESS
-    // ==================================================
+/* =====================================================
+   LATEST DOCUMENT
+===================================================== */
 
-    function setProgress(
-        value,
-        message
-    ) {
+async function loadLatestDocument() {
 
-        progress.style.width =
-            `${value}%`;
+    try {
 
-        progressText.textContent =
-            message;
-
-    }
-
-
-    // ==================================================
-    // STATUS
-    // ==================================================
-
-    function showStatus(
-        message,
-        type
-    ) {
-
-        statusBox.textContent =
-            message;
-
-        statusBox.className =
-            `status ${type}`;
-
-    }
-
-
-    function hideStatus() {
-
-        statusBox.style.display =
-            "none";
-
-        statusBox.className =
-            "status";
-
-        statusBox.textContent =
-            "";
-
-    }
-
-
-    // ==================================================
-    // FILE SIZE
-    // ==================================================
-
-    function formatFileSize(bytes) {
-
-        if (bytes === 0) {
-
-            return "0 Bytes";
-
-        }
-
-
-        const units = [
-            "Bytes",
-            "KB",
-            "MB",
-            "GB"
-        ];
-
-
-        const index =
-            Math.floor(
-                Math.log(bytes) /
-                Math.log(1024)
+        const response =
+            await fetch(
+                `${API_BASE}/api/documents/latest`
             );
 
 
-        return (
-            parseFloat(
-                (
-                    bytes /
-                    Math.pow(
-                        1024,
-                        index
-                    )
-                ).toFixed(2)
-            ) +
-            " " +
-            units[index]
+        const data =
+            await response.json();
+
+
+        if (
+            !response.ok ||
+            !data.success ||
+            !data.document
+        ) {
+
+            latestDocument.innerHTML =
+                `
+                <h3>
+                    Latest Document
+                </h3>
+
+                <p>
+                    No document uploaded yet.
+                </p>
+                `;
+
+            return;
+        }
+
+
+        const doc =
+            data.document;
+
+
+        const text =
+            doc.extracted_text || "";
+
+
+        latestDocument.innerHTML =
+            `
+
+            <h3>
+                📄 Latest Document
+            </h3>
+
+            <p>
+                <strong>
+                    ${escapeHTML(
+                        doc.file_name
+                    )}
+                </strong>
+            </p>
+
+            <p>
+                Document ID:
+                ${doc.id}
+            </p>
+
+            <p>
+                Extracted characters:
+                ${text.length.toLocaleString()}
+            </p>
+
+            <p>
+                Uploaded:
+                ${
+                    doc.created_at
+                        ? escapeHTML(
+                            new Date(
+                                doc.created_at
+                            ).toLocaleString()
+                        )
+                        : "Unknown"
+                }
+            </p>
+
+            `;
+
+
+    } catch (error) {
+
+        console.error(
+            "LATEST DOCUMENT ERROR:",
+            error
         );
 
     }
 
+}
 
-    // ==================================================
-    // ESCAPE HTML
-    // ==================================================
 
-    function escapeHtml(text) {
+/* =====================================================
+   BACKEND HEALTH
+===================================================== */
 
-        const div =
-            window.document.createElement(
-                "div"
+async function checkBackend() {
+
+    try {
+
+        const response =
+            await fetch(
+                `${API_BASE}/api/health`
             );
 
-        div.textContent =
-            text;
 
-        return div.innerHTML;
+        const data =
+            await response.json();
+
+
+        if (
+            response.ok &&
+            data.success
+        ) {
+
+            backendStatus.innerHTML =
+                "🟢 Backend Connected";
+
+        } else {
+
+            backendStatus.innerHTML =
+                "🔴 Backend Error";
+
+        }
+
+
+    } catch (error) {
+
+        console.error(
+            "BACKEND HEALTH ERROR:",
+            error
+        );
+
+
+        backendStatus.innerHTML =
+            "🔴 Backend Connection Failed";
 
     }
 
+}
 
-    // ==================================================
-    // START
-    // ==================================================
 
-    loadDocuments();
+/* =====================================================
+   HTML ESCAPE
+===================================================== */
+
+function escapeHTML(
+    value
+) {
+
+    return String(
+        value ?? ""
+    )
+        .replaceAll(
+            "&",
+            "&amp;"
+        )
+        .replaceAll(
+            "<",
+            "&lt;"
+        )
+        .replaceAll(
+            ">",
+            "&gt;"
+        )
+        .replaceAll(
+            '"',
+            "&quot;"
+        )
+        .replaceAll(
+            "'",
+            "&#039;"
+        );
+
+}
+
+
+/* =====================================================
+   INITIAL LOAD
+===================================================== */
+
+checkBackend();
+
+loadDocuments();
+
+loadLatestDocument();
 
 </script>
 
