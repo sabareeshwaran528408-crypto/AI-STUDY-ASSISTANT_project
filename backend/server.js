@@ -12,7 +12,7 @@ const path = require("path");
 const dotenv = require("dotenv");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-
+const crypto = require("crypto");
 const { PDFParse } = require("pdf-parse");
 const Groq = require("groq-sdk");
 
@@ -409,6 +409,324 @@ app.post("/api/auth/login", async (req, res) => {
             success: false,
             message:
                 "Server error while logging in."
+        });
+
+    }
+
+});
+// =====================================================
+// FORGOT PASSWORD API
+// =====================================================
+
+app.post("/api/auth/forgot-password", async (req, res) => {
+
+    try {
+
+        const { email } = req.body;
+
+        if (!email) {
+            return res.status(400).json({
+                success: false,
+                message: "Email is required."
+            });
+        }
+
+        const cleanEmail =
+            email.trim().toLowerCase();
+
+        // ---------------------------------------------
+        // FIND USER
+        // ---------------------------------------------
+
+        const [users] =
+            await db.promise().query(
+                `
+                SELECT
+                    id,
+                    name,
+                    email
+                FROM users
+                WHERE email = ?
+                LIMIT 1
+                `,
+                [cleanEmail]
+            );
+
+        // Always return the same message.
+        // This prevents revealing whether an email exists.
+
+        if (users.length === 0) {
+
+            return res.json({
+                success: true,
+                message:
+                    "If an account exists with this email, a password reset link has been sent."
+            });
+
+        }
+
+        const user = users[0];
+
+        // ---------------------------------------------
+        // CREATE SECURE TOKEN
+        // ---------------------------------------------
+
+        const resetToken =
+            crypto
+                .randomBytes(32)
+                .toString("hex");
+
+        // Store only the hash in database
+
+        const tokenHash =
+            crypto
+                .createHash("sha256")
+                .update(resetToken)
+                .digest("hex");
+
+        // Token expires in 15 minutes
+
+        const expiresAt =
+            new Date(
+                Date.now() + 15 * 60 * 1000
+            );
+
+        // ---------------------------------------------
+        // SAVE TOKEN
+        // ---------------------------------------------
+
+        await db.promise().query(
+            `
+            UPDATE users
+            SET
+                reset_token = ?,
+                reset_token_expires = ?
+            WHERE id = ?
+            `,
+            [
+                tokenHash,
+                expiresAt,
+                user.id
+            ]
+        );
+
+        // ---------------------------------------------
+        // CREATE RESET LINK
+        // ---------------------------------------------
+
+        const frontendUrl =
+            process.env.FRONTEND_URL ||
+            "http://localhost:3000";
+
+        const resetLink =
+            `${frontendUrl}/reset-password.html?token=${resetToken}`;
+
+        // ---------------------------------------------
+        // SEND TO N8N
+        // ---------------------------------------------
+
+        const n8nWebhook =
+            process.env.N8N_RESET_WEBHOOK_URL;
+
+        if (!n8nWebhook) {
+
+            console.error(
+                "N8N_RESET_WEBHOOK_URL is not configured."
+            );
+
+            return res.status(500).json({
+                success: false,
+                message:
+                    "Password reset email service is not configured."
+            });
+
+        }
+
+        const n8nResponse =
+            await fetch(
+                n8nWebhook,
+                {
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+
+                    body: JSON.stringify({
+                        name: user.name,
+                        email: user.email,
+                        resetLink: resetLink
+                    })
+                }
+            );
+
+        if (!n8nResponse.ok) {
+
+            console.error(
+                "n8n webhook failed:",
+                n8nResponse.status
+            );
+
+            return res.status(500).json({
+                success: false,
+                message:
+                    "Unable to send password reset email."
+            });
+
+        }
+
+        console.log(
+            "Password reset email requested for:",
+            user.email
+        );
+
+        // ---------------------------------------------
+        // SUCCESS
+        // ---------------------------------------------
+
+        res.json({
+            success: true,
+            message:
+                "If an account exists with this email, a password reset link has been sent."
+        });
+
+    } catch (error) {
+
+        console.error(
+            "Forgot password error:",
+            error
+        );
+
+        res.status(500).json({
+            success: false,
+            message:
+                "Server error while processing password reset."
+        });
+
+    }
+
+});
+// =====================================================
+// RESET PASSWORD API
+// =====================================================
+
+app.post("/api/auth/reset-password", async (req, res) => {
+
+    try {
+
+        const {
+            token,
+            password
+        } = req.body;
+
+        if (!token || !password) {
+
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Reset token and new password are required."
+            });
+
+        }
+
+        if (password.length < 6) {
+
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Password must contain at least 6 characters."
+            });
+
+        }
+
+        // ---------------------------------------------
+        // HASH TOKEN
+        // ---------------------------------------------
+
+        const tokenHash =
+            crypto
+                .createHash("sha256")
+                .update(token)
+                .digest("hex");
+
+        // ---------------------------------------------
+        // FIND VALID TOKEN
+        // ---------------------------------------------
+
+        const [users] =
+            await db.promise().query(
+                `
+                SELECT
+                    id
+                FROM users
+                WHERE
+                    reset_token = ?
+                    AND reset_token_expires > NOW()
+                LIMIT 1
+                `,
+                [tokenHash]
+            );
+
+        if (users.length === 0) {
+
+            return res.status(400).json({
+                success: false,
+                message:
+                    "This reset link is invalid or expired."
+            });
+
+        }
+
+        const userId =
+            users[0].id;
+
+        // ---------------------------------------------
+        // HASH NEW PASSWORD
+        // ---------------------------------------------
+
+        const hashedPassword =
+            await bcrypt.hash(
+                password,
+                10
+            );
+
+        // ---------------------------------------------
+        // UPDATE PASSWORD
+        // ---------------------------------------------
+
+        await db.promise().query(
+            `
+            UPDATE users
+            SET
+                password = ?,
+                reset_token = NULL,
+                reset_token_expires = NULL
+            WHERE id = ?
+            `,
+            [
+                hashedPassword,
+                userId
+            ]
+        );
+
+        res.json({
+            success: true,
+            message:
+                "Password reset successfully."
+        });
+
+    } catch (error) {
+
+        console.error(
+            "Reset password error:",
+            error
+        );
+
+        res.status(500).json({
+            success: false,
+            message:
+                "Server error while resetting password."
         });
 
     }
