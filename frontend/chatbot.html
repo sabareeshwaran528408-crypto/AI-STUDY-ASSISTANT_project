@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="settings.js"></script>
     <title>AI Study Assistant - Chat Bot</title>
-
+    <script src="auth.js"></script>
     <style>
         * {
             margin: 0;
@@ -212,6 +214,135 @@
             margin-bottom: 4px;
             color: #6b7280;
         }
+        /* ================= MARKDOWN AI ANSWER ================= */
+
+.bot .bubble {
+    line-height: 1.65;
+    white-space: normal;
+}
+
+.bot .bubble p {
+    margin: 0 0 12px;
+}
+
+.bot .bubble p:last-child {
+    margin-bottom: 0;
+}
+
+.bot .bubble h1,
+.bot .bubble h2,
+.bot .bubble h3,
+.bot .bubble h4 {
+    margin: 16px 0 8px;
+    line-height: 1.3;
+}
+
+.bot .bubble h1 {
+    font-size: 22px;
+}
+
+.bot .bubble h2 {
+    font-size: 20px;
+}
+
+.bot .bubble h3 {
+    font-size: 17px;
+}
+
+.bot .bubble ul,
+.bot .bubble ol {
+    margin: 8px 0 12px 22px;
+}
+
+.bot .bubble li {
+    margin-bottom: 5px;
+}
+
+.bot .bubble strong {
+    font-weight: 700;
+}
+
+.bot .bubble code {
+    background: #e5e7eb;
+    color: #111827;
+    padding: 2px 5px;
+    border-radius: 4px;
+    font-family: Consolas, monospace;
+}
+
+.bot .bubble pre {
+    background: #111827;
+    color: #f8fafc;
+    padding: 14px;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 12px 0;
+}
+
+.bot .bubble pre code {
+    background: transparent;
+    color: inherit;
+    padding: 0;
+}
+
+.bot .bubble table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+    font-size: 13px;
+}
+
+.bot .bubble th,
+.bot .bubble td {
+    border: 1px solid #d1d5db;
+    padding: 8px 10px;
+    text-align: left;
+}
+
+.bot .bubble th {
+    background: #eff6ff;
+    font-weight: bold;
+}
+
+.bot .bubble blockquote {
+    border-left: 4px solid #2563eb;
+    padding-left: 12px;
+    margin: 12px 0;
+    color: #4b5563;
+}
+html[data-dark-mode="on"] .bot .bubble {
+    background: #111827 !important;
+    color: #f8fafc !important;
+    border-color: #374151 !important;
+}
+
+html[data-dark-mode="on"] .bot .bubble h1,
+html[data-dark-mode="on"] .bot .bubble h2,
+html[data-dark-mode="on"] .bot .bubble h3,
+html[data-dark-mode="on"] .bot .bubble h4,
+html[data-dark-mode="on"] .bot .bubble p,
+html[data-dark-mode="on"] .bot .bubble li {
+    color: #f8fafc !important;
+}
+
+html[data-dark-mode="on"] .bot .bubble code {
+    background: #374151 !important;
+    color: #f8fafc !important;
+}
+
+html[data-dark-mode="on"] .bot .bubble th {
+    background: #1e3a5f !important;
+    color: #f8fafc !important;
+}
+
+html[data-dark-mode="on"] .bot .bubble td {
+    border-color: #475569 !important;
+    color: #f8fafc !important;
+}
+
+html[data-dark-mode="on"] .bot .bubble blockquote {
+    color: #cbd5e1 !important;
+}
 
         /* ================= TYPING ================= */
 
@@ -366,6 +497,9 @@
 </head>
 
 <body>
+    <script>
+    requireLogin();
+</script>
 
     <!-- ================= SIDEBAR ================= -->
 
@@ -805,63 +939,65 @@
 
         // ================= ADD MESSAGE TO UI =================
 
-        function addMessage(
-            role,
-            content
-        ) {
+        function addMessage(role, content) {
 
-            const chatContainer =
-                document.getElementById(
-                    "chatContainer"
-                );
+    const chatContainer =
+        document.getElementById("chatContainer");
 
+    const message =
+        document.createElement("div");
 
-            const message =
-                document.createElement("div");
+    message.className =
+        `message ${role}`;
 
-            message.className =
-                `message ${role}`;
+    const wrapper =
+        document.createElement("div");
 
+    const label =
+        document.createElement("div");
 
-            const wrapper =
-                document.createElement("div");
+    label.className =
+        "message-label";
 
+    label.textContent =
+        role === "user"
+            ? "You"
+            : "AI Assistant";
 
-            const label =
-                document.createElement("div");
+    const bubble =
+        document.createElement("div");
 
-            label.className =
-                "message-label";
+    bubble.className =
+        "bubble";
 
-            label.textContent =
-                role === "user"
-                    ? "You"
-                    : "AI Assistant";
+    // ==============================
+    // FORMAT AI MARKDOWN RESPONSE
+    // ==============================
 
+    if (role === "bot") {
 
-            const bubble =
-                document.createElement("div");
+        bubble.innerHTML =
+            DOMPurify.sanitize(
+                marked.parse(content || "")
+            );
 
-            bubble.className =
-                "bubble";
+    } else {
 
-            bubble.textContent =
-                content;
+        // User messages remain normal text
+        bubble.textContent = content;
 
+    }
 
-            wrapper.appendChild(label);
+    wrapper.appendChild(label);
+    wrapper.appendChild(bubble);
 
-            wrapper.appendChild(bubble);
+    message.appendChild(wrapper);
 
-            message.appendChild(wrapper);
+    chatContainer.appendChild(message);
 
-            chatContainer.appendChild(message);
-
-
-            chatContainer.scrollTop =
-                chatContainer.scrollHeight;
-
-        }
+    chatContainer.scrollTop =
+        chatContainer.scrollHeight;
+}
 
 
         // ================= LOAD OLD CHAT INTO UI =================

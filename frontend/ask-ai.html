@@ -2,10 +2,85 @@
 <html lang="en">
 
 <head>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="settings.js"></script>
     <title>Ask AI - AI Study Assistant</title>
+    <script src="auth.js"></script>
+    <style>
+/* =====================================================
+   ASK AI - DARK MODE ANSWER FIX
+===================================================== */
+
+html[data-dark-mode="on"] #answer {
+    background: #111827 !important;
+    color: #f9fafb !important;
+}
+
+/* Every dynamically generated element */
+html[data-dark-mode="on"] #answer * {
+    color: #f9fafb !important;
+}
+
+/* Answer result cards */
+html[data-dark-mode="on"] #answer .answer-result {
+    background: #1f2937 !important;
+    color: #f9fafb !important;
+    border: 1px solid #374151 !important;
+}
+
+/* Source/relevance header */
+html[data-dark-mode="on"] #answer .result-header {
+    background: transparent !important;
+    color: #f9fafb !important;
+}
+
+html[data-dark-mode="on"] #answer .result-header strong {
+    color: #ffffff !important;
+}
+
+html[data-dark-mode="on"] #answer .result-header span {
+    color: #d1d5db !important;
+}
+
+/* Answer text */
+html[data-dark-mode="on"] #answer p {
+    color: #e5e7eb !important;
+}
+
+/* Heading */
+html[data-dark-mode="on"] #answer .answer-heading {
+    background: transparent !important;
+    color: #ffffff !important;
+}
+
+html[data-dark-mode="on"] #answer .answer-heading strong {
+    color: #ffffff !important;
+}
+
+/* Empty/error result */
+html[data-dark-mode="on"] #answer .empty-state {
+    background: #1f2937 !important;
+    color: #f9fafb !important;
+    border: 1px solid #374151 !important;
+}
+
+html[data-dark-mode="on"] #answer .empty-state h3 {
+    color: #ffffff !important;
+}
+
+html[data-dark-mode="on"] #answer .empty-state p {
+    color: #d1d5db !important;
+}
+
+/* Loading */
+html[data-dark-mode="on"] #answer .loading {
+    background: #1f2937 !important;
+    color: #e5e7eb !important;
+}
+</style>
 
     <style>
         * {
@@ -183,11 +258,105 @@
                 padding: 18px;
             }
         }
+    /* =====================================================
+   ASK AI - CORRECT DARK MODE
+===================================================== */
+
+html[data-dark-mode="on"] body {
+    background: #0f172a !important;
+    color: #f8fafc !important;
+}
+
+html[data-dark-mode="on"] .card {
+    background: #1e293b !important;
+    color: #f8fafc !important;
+}
+
+html[data-dark-mode="on"] .card h2 {
+    color: #f8fafc !important;
+}
+
+/* Question bank dropdown */
+html[data-dark-mode="on"] select {
+    background: #111827 !important;
+    color: #f8fafc !important;
+    border-color: #475569 !important;
+}
+
+/* Question textarea */
+html[data-dark-mode="on"] textarea {
+    background: #111827 !important;
+    color: #f8fafc !important;
+    border-color: #475569 !important;
+}
+
+html[data-dark-mode="on"] textarea::placeholder {
+    color: #94a3b8 !important;
+}
+
+/* ==============================
+   AI ANSWER - IMPORTANT
+============================== */
+
+html[data-dark-mode="on"] #answerBox {
+    background: #111827 !important;
+    color: #f8fafc !important;
+    border-left: 5px solid #3b82f6 !important;
+}
+
+/* Text directly inside answerBox */
+html[data-dark-mode="on"] #answerBox,
+html[data-dark-mode="on"] #answerBox * {
+    color: #f8fafc !important;
+}
+
+/* Empty message */
+html[data-dark-mode="on"] #answerBox .empty {
+    color: #cbd5e1 !important;
+}
+
+/* ==============================
+   SOURCES
+============================== */
+
+html[data-dark-mode="on"] .source-item {
+    background: #1e293b !important;
+    color: #f8fafc !important;
+    border: 1px solid #334155 !important;
+}
+
+html[data-dark-mode="on"] .source-item strong {
+    color: #93c5fd !important;
+}
+
+/* ==============================
+   STATUS
+============================== */
+
+html[data-dark-mode="on"] .success {
+    background: #14532d !important;
+    color: #dcfce7 !important;
+}
+
+html[data-dark-mode="on"] .error {
+    background: #7f1d1d !important;
+    color: #fee2e2 !important;
+}
+
+/* Loading */
+html[data-dark-mode="on"] .loading {
+    color: #60a5fa !important;
+}    
+
     </style>
+
 </head>
 
 
 <body>
+    <script>
+    requireLogin();
+</script>
 
     <!-- ============================= -->
     <!-- HEADER -->
@@ -764,16 +933,17 @@
 
             if (data.answer) {
 
-                answerBox.textContent =
-                    data.answer;
+    answerBox.innerHTML =
+        DOMPurify.sanitize(
+            marked.parse(data.answer)
+        );
 
-            } else {
+} else {
 
-                answerBox.textContent =
-                    "No answer was generated.";
+    answerBox.textContent =
+        "No answer was generated.";
 
-            }
-
+}
 
             // ==================================================
             // DISPLAY SOURCES
@@ -935,6 +1105,8 @@
     loadDocuments();
 
 </script>
+
+
 
 </body>
 </html>

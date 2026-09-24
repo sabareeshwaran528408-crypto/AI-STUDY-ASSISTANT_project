@@ -4,23 +4,19 @@
 // Node.js + Express + MySQL + PDF Processing + Groq AI
 // =====================================================
 
-
-// =====================================================
-// IMPORT MODULES
-// =====================================================
-
 const express = require("express");
 const cors = require("cors");
 const multer = require("multer");
 const fs = require("fs");
 const path = require("path");
 const dotenv = require("dotenv");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 
 const { PDFParse } = require("pdf-parse");
-
-const db = require("./db");
 const Groq = require("groq-sdk");
 
+const db = require("./db");
 
 // =====================================================
 // LOAD ENVIRONMENT VARIABLES
@@ -28,6 +24,25 @@ const Groq = require("groq-sdk");
 
 dotenv.config();
 
+// =====================================================
+// EXPRESS APP
+// =====================================================
+
+const app = express();
+
+const PORT = process.env.PORT || 5000;
+
+// =====================================================
+// CONFIGURATION CHECK
+// =====================================================
+
+if (!process.env.JWT_SECRET) {
+    console.warn("WARNING: JWT_SECRET is not configured.");
+}
+
+if (!process.env.GROQ_API_KEY) {
+    console.warn("WARNING: GROQ_API_KEY is not configured.");
+}
 
 // =====================================================
 // GROQ AI
@@ -38,16 +53,6 @@ const groq = new Groq({
 });
 
 const GROQ_MODEL = "openai/gpt-oss-20b";
-
-
-// =====================================================
-// EXPRESS APP
-// =====================================================
-
-const app = express();
-
-const PORT = process.env.PORT || 5000;
-
 
 // =====================================================
 // MIDDLEWARE
@@ -72,6 +77,402 @@ app.use(
     })
 );
 
+// =====================================================
+// AUTHENTICATION MIDDLEWARE
+// =====================================================
+
+function authenticateToken(req, res, next) {
+    try {
+        const authHeader = req.headers.authorization;
+
+        if (!authHeader) {
+            return res.status(401).json({
+                success: false,
+                message: "Authentication required."
+            });
+        }
+
+        const parts = authHeader.split(" ");
+
+        if (
+            parts.length !== 2 ||
+            parts[0] !== "Bearer"
+        ) {
+            return res.status(401).json({
+                success: false,
+                message: "Invalid authentication format."
+            });
+        }
+
+        const token = parts[1];
+
+        if (!process.env.JWT_SECRET) {
+            return res.status(500).json({
+                success: false,
+                message: "JWT secret is not configured."
+            });
+        }
+
+        const decoded = jwt.verify(
+            token,
+            process.env.JWT_SECRET
+        );
+
+        req.user = decoded;
+
+        next();
+
+    } catch (error) {
+        return res.status(401).json({
+            success: false,
+            message: "Invalid or expired login session."
+        });
+    }
+}
+
+// =====================================================
+// SIGNUP API
+// =====================================================
+
+app.post("/api/auth/signup", async (req, res) => {
+
+    try {
+
+        const {
+            name,
+            email,
+            password
+        } = req.body;
+
+        // -----------------------------
+        // VALIDATION
+        // -----------------------------
+
+        if (!name || !email || !password) {
+
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Name, email and password are required."
+            });
+
+        }
+
+        const cleanName = name.trim();
+        const cleanEmail = email.trim().toLowerCase();
+
+        if (cleanName.length < 2) {
+
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Name must contain at least 2 characters."
+            });
+
+        }
+
+        if (!cleanEmail.includes("@")) {
+
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Please enter a valid email address."
+            });
+
+        }
+
+        if (password.length < 6) {
+
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Password must contain at least 6 characters."
+            });
+
+        }
+
+        // -----------------------------
+        // CHECK EXISTING USER
+        // -----------------------------
+
+        const [existingUsers] =
+            await db.promise().query(
+                "SELECT id FROM users WHERE email = ? LIMIT 1",
+                [cleanEmail]
+            );
+
+        if (existingUsers.length > 0) {
+
+            return res.status(409).json({
+                success: false,
+                message:
+                    "An account with this email already exists."
+            });
+
+        }
+
+        // -----------------------------
+        // HASH PASSWORD
+        // -----------------------------
+
+        const hashedPassword =
+            await bcrypt.hash(password, 10);
+
+        // -----------------------------
+        // CREATE USER
+        // -----------------------------
+
+        const [result] =
+            await db.promise().query(
+                `
+                INSERT INTO users
+                (name, email, password)
+                VALUES (?, ?, ?)
+                `,
+                [
+                    cleanName,
+                    cleanEmail,
+                    hashedPassword
+                ]
+            );
+
+        // -----------------------------
+        // CREATE JWT
+        // -----------------------------
+
+        const token = jwt.sign(
+            {
+                id: result.insertId,
+                name: cleanName,
+                email: cleanEmail
+            },
+            process.env.JWT_SECRET,
+            {
+                expiresIn: "7d"
+            }
+        );
+
+        // -----------------------------
+        // RESPONSE
+        // -----------------------------
+
+        res.status(201).json({
+            success: true,
+            message:
+                "Account created successfully.",
+            token,
+            user: {
+                id: result.insertId,
+                name: cleanName,
+                email: cleanEmail
+            }
+        });
+
+    } catch (error) {
+
+        console.error(
+            "Signup error:",
+            error
+        );
+
+        res.status(500).json({
+            success: false,
+            message:
+                "Server error while creating account."
+        });
+
+    }
+
+});
+
+// =====================================================
+// LOGIN API
+// =====================================================
+
+app.post("/api/auth/login", async (req, res) => {
+
+    try {
+
+        const {
+            email,
+            password
+        } = req.body;
+
+        // -----------------------------
+        // VALIDATION
+        // -----------------------------
+
+        if (!email || !password) {
+
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Email and password are required."
+            });
+
+        }
+
+        const cleanEmail =
+            email.trim().toLowerCase();
+
+        // -----------------------------
+        // FIND USER
+        // -----------------------------
+
+        const [users] =
+            await db.promise().query(
+                `
+                SELECT
+                    id,
+                    name,
+                    email,
+                    password
+                FROM users
+                WHERE email = ?
+                LIMIT 1
+                `,
+                [cleanEmail]
+            );
+
+        if (users.length === 0) {
+
+            return res.status(401).json({
+                success: false,
+                message:
+                    "Invalid email or password."
+            });
+
+        }
+
+        const user = users[0];
+
+        // -----------------------------
+        // COMPARE PASSWORD
+        // -----------------------------
+
+        const passwordMatches =
+            await bcrypt.compare(
+                password,
+                user.password
+            );
+
+        if (!passwordMatches) {
+
+            return res.status(401).json({
+                success: false,
+                message:
+                    "Invalid email or password."
+            });
+
+        }
+
+        // -----------------------------
+        // CREATE TOKEN
+        // -----------------------------
+
+        const token = jwt.sign(
+            {
+                id: user.id,
+                name: user.name,
+                email: user.email
+            },
+            process.env.JWT_SECRET,
+            {
+                expiresIn: "7d"
+            }
+        );
+
+        // -----------------------------
+        // RESPONSE
+        // -----------------------------
+
+        res.json({
+            success: true,
+            message:
+                "Login successful.",
+            token,
+            user: {
+                id: user.id,
+                name: user.name,
+                email: user.email
+            }
+        });
+
+    } catch (error) {
+
+        console.error(
+            "Login error:",
+            error
+        );
+
+        res.status(500).json({
+            success: false,
+            message:
+                "Server error while logging in."
+        });
+
+    }
+
+});
+
+// =====================================================
+// CHECK LOGIN / CURRENT USER
+// =====================================================
+
+app.get(
+    "/api/auth/me",
+    authenticateToken,
+    async (req, res) => {
+
+        try {
+
+            const [users] =
+                await db.promise().query(
+                    `
+                    SELECT
+                        id,
+                        name,
+                        email,
+                        created_at
+                    FROM users
+                    WHERE id = ?
+                    LIMIT 1
+                    `,
+                    [req.user.id]
+                );
+
+            if (users.length === 0) {
+
+                return res.status(404).json({
+                    success: false,
+                    message:
+                        "User not found."
+                });
+
+            }
+
+            res.json({
+                success: true,
+                user: users[0]
+            });
+
+        } catch (error) {
+
+            console.error(
+                "Auth check error:",
+                error
+            );
+
+            res.status(500).json({
+                success: false,
+                message:
+                    "Unable to verify user."
+            });
+
+        }
+
+    }
+);
 
 // =====================================================
 // UPLOAD DIRECTORY
@@ -90,7 +491,6 @@ if (!fs.existsSync(uploadDirectory)) {
     );
 
 }
-
 
 // =====================================================
 // MULTER CONFIGURATION
@@ -142,17 +542,14 @@ const storage =
 
     });
 
-
 const upload =
     multer({
 
         storage: storage,
 
         limits: {
-
             fileSize:
                 100 * 1024 * 1024
-
         },
 
         fileFilter:
@@ -189,41 +586,33 @@ const upload =
 
     });
 
-
 // =====================================================
 // ROOT
 // =====================================================
 
-app.get(
-    "/",
-    function (
-        req,
-        res
-    ) {
+app.get("/", function (req, res) {
 
-        res.json({
+    res.json({
 
-            success: true,
+        success: true,
 
-            message:
-                "AI Study Assistant backend is running.",
+        message:
+            "AI Study Assistant backend is running.",
 
-            status:
-                "online",
+        status:
+            "online",
 
-            database:
-                "MySQL",
+        database:
+            "MySQL",
 
-            groqAI:
-                Boolean(
-                    process.env.GROQ_API_KEY
-                )
+        groqAI:
+            Boolean(
+                process.env.GROQ_API_KEY
+            )
 
-        });
+    });
 
-    }
-);
-
+});
 
 // =====================================================
 // HEALTH CHECK
@@ -231,18 +620,13 @@ app.get(
 
 app.get(
     "/api/health",
-    async function (
-        req,
-        res
-    ) {
+    async function (req, res) {
 
         try {
 
             await db
                 .promise()
-                .query(
-                    "SELECT 1"
-                );
+                .query("SELECT 1");
 
             res.json({
 
@@ -293,19 +677,14 @@ app.get(
     }
 );
 
-
 // =====================================================
 // CLEAN TEXT
 // =====================================================
 
-function cleanText(
-    text
-) {
+function cleanText(text) {
 
     if (!text) {
-
         return "";
-
     }
 
     return String(text)
@@ -329,16 +708,8 @@ function cleanText(
 
 }
 
-
 // =====================================================
-// CREATE CHUNKS - OPTIMIZED
-//
-// IMPORTANT:
-// The old version inserted every chunk separately.
-// That made even small PDFs slower.
-//
-// This version creates all chunks first and inserts
-// them into MySQL in batches.
+// CREATE CHUNKS
 // =====================================================
 
 async function createChunks(
@@ -346,24 +717,18 @@ async function createChunks(
     text
 ) {
 
-    const chunkSize =
-        1200;
+    const chunkSize = 1200;
 
-    const overlap =
-        150;
+    const overlap = 150;
 
     const step =
         chunkSize - overlap;
 
-    const rows =
-        [];
+    const rows = [];
 
-    let chunkIndex =
-        0;
+    let chunkIndex = 0;
 
-    let start =
-        0;
-
+    let start = 0;
 
     while (
         start < text.length
@@ -377,7 +742,6 @@ async function createChunks(
                 )
                 .trim();
 
-
         if (chunk.length > 0) {
 
             rows.push([
@@ -390,28 +754,15 @@ async function createChunks(
 
         }
 
-
         start += step;
 
     }
 
-
-    if (
-        rows.length === 0
-    ) {
-
+    if (rows.length === 0) {
         return 0;
-
     }
 
-
-    // ---------------------------------------------
-    // BATCH INSERT
-    // ---------------------------------------------
-
-    const batchSize =
-        200;
-
+    const batchSize = 200;
 
     for (
         let i = 0;
@@ -425,7 +776,6 @@ async function createChunks(
                 i + batchSize
             );
 
-
         await db
             .promise()
             .query(
@@ -438,80 +788,43 @@ async function createChunks(
                 )
                 VALUES ?
                 `,
-                [
-                    batch
-                ]
+                [batch]
             );
 
     }
-
 
     return rows.length;
 
 }
 
-
 // =====================================================
-// POST /api/documents/upload
-//
-// NORMAL PDF UPLOAD
-//
-// Frontend MUST use:
-//
-// formData.append("document", selectedFile)
-//
-// because multer expects:
-//
-// upload.single("document")
+// PDF UPLOAD
 // =====================================================
 
 app.post(
     "/api/documents/upload",
+    upload.single("document"),
+    async function (req, res) {
 
-    upload.single(
-        "document"
-    ),
-
-    async function (
-        req,
-        res
-    ) {
-
-        let filePath =
-            null;
-
+        let filePath = null;
 
         try {
-
-            // -----------------------------------------
-            // CHECK FILE
-            // -----------------------------------------
 
             if (!req.file) {
 
                 return res.status(400).json({
-
                     success: false,
-
                     message:
                         "Please upload a PDF file."
-
                 });
 
             }
 
-
             filePath =
                 req.file.path;
 
-
             const originalFileName =
                 req.file.originalname;
-
-
-            console.log(
-                "----------------------------------------"
-            );
 
             console.log(
                 "PDF received:",
@@ -528,54 +841,46 @@ app.post(
                 "MB"
             );
 
-
-            // -----------------------------------------
+            // -----------------------------
             // READ PDF
-            // -----------------------------------------
+            // -----------------------------
 
             const pdfBuffer =
                 fs.readFileSync(
                     filePath
                 );
 
-
             console.log(
                 "Reading PDF..."
             );
 
-
-            // -----------------------------------------
+            // -----------------------------
             // PDF PARSER
-            // -----------------------------------------
+            // -----------------------------
 
             const parser =
                 new PDFParse({
                     data: pdfBuffer
                 });
 
-
             const result =
                 await parser.getText();
-
 
             const extractedText =
                 cleanText(
                     result.text
                 );
 
-
             await parser.destroy();
-
 
             console.log(
                 "Extracted characters:",
                 extractedText.length
             );
 
-
-            // -----------------------------------------
+            // -----------------------------
             // SCANNED PDF
-            // -----------------------------------------
+            // -----------------------------
 
             if (
                 extractedText.length < 20
@@ -585,7 +890,6 @@ app.post(
                     "Scanned/image PDF detected."
                 );
 
-
                 try {
 
                     if (
@@ -593,11 +897,9 @@ app.post(
                             filePath
                         )
                     ) {
-
                         fs.unlinkSync(
                             filePath
                         );
-
                     }
 
                 } catch (
@@ -610,7 +912,6 @@ app.post(
                     );
 
                 }
-
 
                 return res.status(400).json({
 
@@ -625,15 +926,13 @@ app.post(
 
             }
 
-
-            // -----------------------------------------
+            // -----------------------------
             // INSERT DOCUMENT
-            // -----------------------------------------
+            // -----------------------------
 
             console.log(
                 "Saving document to MySQL..."
             );
-
 
             const [
                 documentResult
@@ -660,25 +959,21 @@ app.post(
                         ]
                     );
 
-
             const documentId =
                 documentResult.insertId;
-
 
             console.log(
                 "Document created:",
                 documentId
             );
 
-
-            // -----------------------------------------
+            // -----------------------------
             // CREATE CHUNKS
-            // -----------------------------------------
+            // -----------------------------
 
             console.log(
                 "Creating chunks..."
             );
-
 
             const chunks =
                 await createChunks(
@@ -686,25 +981,10 @@ app.post(
                     extractedText
                 );
 
-
             console.log(
                 "Chunks created:",
                 chunks
             );
-
-
-            // -----------------------------------------
-            // SUCCESS
-            // -----------------------------------------
-
-            console.log(
-                "PDF processing completed."
-            );
-
-            console.log(
-                "----------------------------------------"
-            );
-
 
             res.json({
 
@@ -713,8 +993,7 @@ app.post(
                 message:
                     "PDF uploaded and processed successfully.",
 
-                documentId:
-                    documentId,
+                documentId,
 
                 fileName:
                     originalFileName,
@@ -722,11 +1001,9 @@ app.post(
                 characters:
                     extractedText.length,
 
-                chunks:
-                    chunks
+                chunks
 
             });
-
 
         } catch (error) {
 
@@ -735,14 +1012,7 @@ app.post(
                 error
             );
 
-
-            // -----------------------------------------
-            // CLEAN TEMP FILE
-            // -----------------------------------------
-
-            if (
-                filePath
-            ) {
+            if (filePath) {
 
                 try {
 
@@ -751,11 +1021,9 @@ app.post(
                             filePath
                         )
                     ) {
-
                         fs.unlinkSync(
                             filePath
                         );
-
                     }
 
                 } catch (
@@ -770,7 +1038,6 @@ app.post(
                 }
 
             }
-
 
             res.status(500).json({
 
@@ -789,19 +1056,13 @@ app.post(
     }
 );
 
-
 // =====================================================
-// POST /api/documents/text
-//
 // BROWSER OCR
 // =====================================================
 
 app.post(
     "/api/documents/text",
-    async function (
-        req,
-        res
-    ) {
+    async function (req, res) {
 
         try {
 
@@ -809,11 +1070,6 @@ app.post(
                 fileName,
                 text
             } = req.body;
-
-
-            // -----------------------------------------
-            // VALIDATION
-            // -----------------------------------------
 
             if (
                 !fileName ||
@@ -831,12 +1087,8 @@ app.post(
 
             }
 
-
             const cleanedText =
-                cleanText(
-                    text
-                );
-
+                cleanText(text);
 
             if (
                 cleanedText.length < 20
@@ -853,7 +1105,6 @@ app.post(
 
             }
 
-
             console.log(
                 "Saving browser OCR:",
                 fileName
@@ -863,11 +1114,6 @@ app.post(
                 "OCR characters:",
                 cleanedText.length
             );
-
-
-            // -----------------------------------------
-            // INSERT DOCUMENT
-            // -----------------------------------------
 
             const [
                 documentResult
@@ -894,14 +1140,8 @@ app.post(
                         ]
                     );
 
-
             const documentId =
                 documentResult.insertId;
-
-
-            // -----------------------------------------
-            // CREATE CHUNKS
-            // -----------------------------------------
 
             const chunks =
                 await createChunks(
@@ -909,17 +1149,10 @@ app.post(
                     cleanedText
                 );
 
-
             console.log(
                 "Browser OCR document:",
                 documentId
             );
-
-            console.log(
-                "Chunks:",
-                chunks
-            );
-
 
             res.json({
 
@@ -928,20 +1161,16 @@ app.post(
                 message:
                     "OCR text saved successfully.",
 
-                documentId:
-                    documentId,
+                documentId,
 
-                fileName:
-                    fileName,
+                fileName,
 
                 characters:
                     cleanedText.length,
 
-                chunks:
-                    chunks
+                chunks
 
             });
-
 
         } catch (error) {
 
@@ -949,7 +1178,6 @@ app.post(
                 "OCR TEXT ERROR:",
                 error
             );
-
 
             res.status(500).json({
 
@@ -968,19 +1196,13 @@ app.post(
     }
 );
 
-
 // =====================================================
-// GET /api/documents
-//
 // GET ALL DOCUMENTS
 // =====================================================
 
 app.get(
     "/api/documents",
-    async function (
-        req,
-        res
-    ) {
+    async function (req, res) {
 
         try {
 
@@ -1005,7 +1227,6 @@ app.get(
                         `
                     );
 
-
             res.json({
 
                 success: true,
@@ -1015,14 +1236,12 @@ app.get(
 
             });
 
-
         } catch (error) {
 
             console.error(
                 "GET DOCUMENTS ERROR:",
                 error
             );
-
 
             res.status(500).json({
 
@@ -1041,17 +1260,13 @@ app.get(
     }
 );
 
-
 // =====================================================
-// GET /api/documents/latest
+// GET LATEST DOCUMENT
 // =====================================================
 
 app.get(
     "/api/documents/latest",
-    async function (
-        req,
-        res
-    ) {
+    async function (req, res) {
 
         try {
 
@@ -1075,7 +1290,6 @@ app.get(
                         `
                     );
 
-
             if (
                 rows.length === 0
             ) {
@@ -1091,7 +1305,6 @@ app.get(
 
             }
 
-
             res.json({
 
                 success: true,
@@ -1101,14 +1314,12 @@ app.get(
 
             });
 
-
         } catch (error) {
 
             console.error(
                 "LATEST DOCUMENT ERROR:",
                 error
             );
-
 
             res.status(500).json({
 
@@ -1127,20 +1338,14 @@ app.get(
     }
 );
 
-
 // =====================================================
-// GET /api/documents/search
-//
-// IMPORTANT:
-// This route MUST appear before /api/documents/:id
+// DOCUMENT SEARCH
+// IMPORTANT: BEFORE /api/documents/:id
 // =====================================================
 
 app.get(
     "/api/documents/search",
-    async function (
-        req,
-        res
-    ) {
+    async function (req, res) {
 
         try {
 
@@ -1149,12 +1354,10 @@ app.get(
                     req.query.documentId
                 );
 
-
             const query =
                 String(
                     req.query.q || ""
                 ).trim();
-
 
             if (
                 !Number.isInteger(
@@ -1173,7 +1376,6 @@ app.get(
 
             }
 
-
             if (
                 query.length === 0
             ) {
@@ -1189,7 +1391,6 @@ app.get(
 
             }
 
-
             const words =
                 query
                     .toLowerCase()
@@ -1197,14 +1398,11 @@ app.get(
                         /[^a-z0-9\s]/g,
                         " "
                     )
-                    .split(
-                        /\s+/
-                    )
+                    .split(/\s+/)
                     .filter(
                         word =>
                             word.length > 2
                     );
-
 
             if (
                 words.length === 0
@@ -1214,16 +1412,13 @@ app.get(
 
                     success: true,
 
-                    query:
-                        query,
+                    query,
 
-                    results:
-                        []
+                    results: []
 
                 });
 
             }
-
 
             const [
                 chunks
@@ -1241,11 +1436,8 @@ app.get(
                         WHERE document_id = ?
                         ORDER BY chunk_index ASC
                         `,
-                        [
-                            documentId
-                        ]
+                        [documentId]
                     );
-
 
             const scored =
                 chunks.map(
@@ -1255,10 +1447,7 @@ app.get(
                             chunk.chunk_text
                                 .toLowerCase();
 
-
-                        let score =
-                            0;
-
+                        let score = 0;
 
                         for (
                             const word
@@ -1275,7 +1464,6 @@ app.get(
                                     )
                                 );
 
-
                             if (
                                 matches
                             ) {
@@ -1286,7 +1474,6 @@ app.get(
                             }
 
                         }
-
 
                         return {
 
@@ -1302,14 +1489,12 @@ app.get(
                             chunk_text:
                                 chunk.chunk_text,
 
-                            score:
-                                score
+                            score
 
                         };
 
                     }
                 );
-
 
             const results =
                 scored
@@ -1318,31 +1503,20 @@ app.get(
                             item.score > 0
                     )
                     .sort(
-                        (
-                            a,
-                            b
-                        ) =>
-                            b.score -
-                            a.score
+                        (a, b) =>
+                            b.score - a.score
                     )
-                    .slice(
-                        0,
-                        8
-                    );
-
+                    .slice(0, 8);
 
             res.json({
 
                 success: true,
 
-                query:
-                    query,
+                query,
 
-                results:
-                    results
+                results
 
             });
-
 
         } catch (error) {
 
@@ -1350,7 +1524,6 @@ app.get(
                 "DOCUMENT SEARCH ERROR:",
                 error
             );
-
 
             res.status(500).json({
 
@@ -1369,19 +1542,13 @@ app.get(
     }
 );
 
-
 // =====================================================
-// POST /api/ai/ask
-//
 // QUESTION BANK AI
 // =====================================================
 
 app.post(
     "/api/ai/ask",
-    async function (
-        req,
-        res
-    ) {
+    async function (req, res) {
 
         try {
 
@@ -1390,12 +1557,10 @@ app.post(
                     req.body.documentId
                 );
 
-
             const question =
                 String(
                     req.body.question || ""
                 ).trim();
-
 
             if (
                 !Number.isInteger(
@@ -1414,10 +1579,7 @@ app.post(
 
             }
 
-
-            if (
-                !question
-            ) {
+            if (!question) {
 
                 return res.status(400).json({
 
@@ -1429,7 +1591,6 @@ app.post(
                 });
 
             }
-
 
             if (
                 !process.env.GROQ_API_KEY
@@ -1446,10 +1607,9 @@ app.post(
 
             }
 
-
-            // -----------------------------------------
+            // -----------------------------
             // GET DOCUMENT
-            // -----------------------------------------
+            // -----------------------------
 
             const [
                 documentRows
@@ -1465,11 +1625,8 @@ app.post(
                         WHERE id = ?
                         LIMIT 1
                         `,
-                        [
-                            documentId
-                        ]
+                        [documentId]
                     );
-
 
             if (
                 documentRows.length === 0
@@ -1486,10 +1643,9 @@ app.post(
 
             }
 
-
-            // -----------------------------------------
+            // -----------------------------
             // QUESTION WORDS
-            // -----------------------------------------
+            // -----------------------------
 
             const words =
                 question
@@ -1498,18 +1654,15 @@ app.post(
                         /[^a-z0-9\s]/g,
                         " "
                     )
-                    .split(
-                        /\s+/
-                    )
+                    .split(/\s+/)
                     .filter(
                         word =>
                             word.length > 2
                     );
 
-
-            // -----------------------------------------
+            // -----------------------------
             // GET CHUNKS
-            // -----------------------------------------
+            // -----------------------------
 
             const [
                 chunks
@@ -1527,11 +1680,8 @@ app.post(
                         WHERE document_id = ?
                         ORDER BY chunk_index ASC
                         `,
-                        [
-                            documentId
-                        ]
+                        [documentId]
                     );
-
 
             if (
                 chunks.length === 0
@@ -1548,10 +1698,9 @@ app.post(
 
             }
 
-
-            // -----------------------------------------
+            // -----------------------------
             // SCORE CHUNKS
-            // -----------------------------------------
+            // -----------------------------
 
             const scored =
                 chunks.map(
@@ -1561,10 +1710,7 @@ app.post(
                             chunk.chunk_text
                                 .toLowerCase();
 
-
-                        let score =
-                            0;
-
+                        let score = 0;
 
                         for (
                             const word
@@ -1581,7 +1727,6 @@ app.post(
                                     )
                                 );
 
-
                             if (
                                 matches
                             ) {
@@ -1593,7 +1738,6 @@ app.post(
 
                         }
 
-
                         return {
                             ...chunk,
                             score
@@ -1602,7 +1746,6 @@ app.post(
                     }
                 );
 
-
             const relevantChunks =
                 scored
                     .filter(
@@ -1610,18 +1753,10 @@ app.post(
                             item.score > 0
                     )
                     .sort(
-                        (
-                            a,
-                            b
-                        ) =>
-                            b.score -
-                            a.score
+                        (a, b) =>
+                            b.score - a.score
                     )
-                    .slice(
-                        0,
-                        6
-                    );
-
+                    .slice(0, 6);
 
             if (
                 relevantChunks.length === 0
@@ -1631,23 +1766,20 @@ app.post(
 
                     success: true,
 
-                    question:
-                        question,
+                    question,
 
                     answer:
                         "I could not find relevant information in the selected question bank.",
 
-                    sources:
-                        []
+                    sources: []
 
                 });
 
             }
 
-
-            // -----------------------------------------
+            // -----------------------------
             // BUILD CONTEXT
-            // -----------------------------------------
+            // -----------------------------
 
             const context =
                 relevantChunks
@@ -1656,21 +1788,15 @@ app.post(
                             item,
                             index
                         ) =>
-
-                            `SOURCE ${
-                                index + 1
-                            }\n${
-                                item.chunk_text
-                            }`
+                            `SOURCE ${index + 1}\n${item.chunk_text}`
                     )
                     .join(
                         "\n\n---\n\n"
                     );
 
-
-            // -----------------------------------------
+            // -----------------------------
             // GROQ
-            // -----------------------------------------
+            // -----------------------------
 
             const completion =
                 await groq.chat.completions.create({
@@ -1697,13 +1823,12 @@ app.post(
                                     "If the context does not contain enough information, clearly say that the answer is not available in the selected question bank.",
                                     "Do not invent facts, questions, page numbers, or answers.",
                                     "Give a clear, student-friendly answer."
-                                ].join(
-                                    " "
-                                )
+                                ].join(" ")
 
                         },
 
                         {
+
                             role:
                                 "user",
 
@@ -1716,7 +1841,6 @@ app.post(
 
                 });
 
-
             const answer =
                 completion
                     .choices?.[0]
@@ -1726,23 +1850,18 @@ app.post(
                 ||
                 "I could not generate an answer.";
 
-
             res.json({
 
-                success:
-                    true,
+                success: true,
 
-                question:
-                    question,
+                question,
 
-                answer:
-                    answer,
+                answer,
 
                 model:
                     GROQ_MODEL,
 
-                documentId:
-                    documentId,
+                documentId,
 
                 documentName:
                     documentRows[0]
@@ -1766,14 +1885,12 @@ app.post(
 
             });
 
-
         } catch (error) {
 
             console.error(
                 "GROQ AI ERROR:",
                 error
             );
-
 
             res.status(500).json({
 
@@ -1792,30 +1909,13 @@ app.post(
     }
 );
 
-
 // =====================================================
-// POST /api/chat
-//
 // GENERAL AI CHATBOT
-//
-// Supports temporary memory sent by chatbot.html.
-//
-// Body:
-//
-// {
-//     message: "...",
-//     userName: "...",
-//     memory: [...],
-//     memorySummary: "..."
-// }
 // =====================================================
 
 app.post(
     "/api/chat",
-    async function (
-        req,
-        res
-    ) {
+    async function (req, res) {
 
         try {
 
@@ -1824,12 +1924,10 @@ app.post(
                     req.body.message || ""
                 ).trim();
 
-
             const userName =
                 String(
                     req.body.userName || ""
                 ).trim();
-
 
             const memory =
                 Array.isArray(
@@ -1838,16 +1936,12 @@ app.post(
                     ? req.body.memory
                     : [];
 
-
             const memorySummary =
                 String(
                     req.body.memorySummary || ""
                 ).trim();
 
-
-            if (
-                !message
-            ) {
+            if (!message) {
 
                 return res.status(400).json({
 
@@ -1859,7 +1953,6 @@ app.post(
                 });
 
             }
-
 
             if (
                 !process.env.GROQ_API_KEY
@@ -1876,10 +1969,9 @@ app.post(
 
             }
 
-
-            // -----------------------------------------
+            // -----------------------------
             // TEMPORARY MEMORY
-            // -----------------------------------------
+            // -----------------------------
 
             const safeMemory =
                 memory
@@ -1904,17 +1996,6 @@ app.post(
                         })
                     );
 
-
-            const memoryMessages =
-                safeMemory.length > 0
-                    ? safeMemory
-                    : [];
-
-
-            // -----------------------------------------
-            // SYSTEM PROMPT
-            // -----------------------------------------
-
             const systemPrompt =
                 [
                     "You are AI Study Assistant, a friendly student learning assistant.",
@@ -1930,17 +2011,12 @@ app.post(
                         : "",
                     "This memory is temporary for the current browser session."
                 ]
-                    .filter(
-                        Boolean
-                    )
-                    .join(
-                        " "
-                    );
+                    .filter(Boolean)
+                    .join(" ");
 
-
-            // -----------------------------------------
+            // -----------------------------
             // BUILD MESSAGES
-            // -----------------------------------------
+            // -----------------------------
 
             const messages = [
 
@@ -1950,10 +2026,9 @@ app.post(
 
                     content:
                         systemPrompt
-
                 },
 
-                ...memoryMessages,
+                ...safeMemory,
 
                 {
                     role:
@@ -1961,15 +2036,13 @@ app.post(
 
                     content:
                         message
-
                 }
 
             ];
 
-
-            // -----------------------------------------
+            // -----------------------------
             // GROQ
-            // -----------------------------------------
+            // -----------------------------
 
             const completion =
                 await groq.chat.completions.create({
@@ -1983,11 +2056,9 @@ app.post(
                     max_completion_tokens:
                         1200,
 
-                    messages:
-                        messages
+                    messages
 
                 });
-
 
             const reply =
                 completion
@@ -1998,20 +2069,16 @@ app.post(
                 ||
                 "Sorry, I could not generate a response.";
 
-
             res.json({
 
-                success:
-                    true,
+                success: true,
 
-                reply:
-                    reply,
+                reply,
 
                 model:
                     GROQ_MODEL
 
             });
-
 
         } catch (error) {
 
@@ -2019,7 +2086,6 @@ app.post(
                 "CHAT ERROR:",
                 error
             );
-
 
             res.status(500).json({
 
@@ -2038,19 +2104,13 @@ app.post(
     }
 );
 
-
 // =====================================================
-// GET /api/documents/:id
-//
 // GET ONE DOCUMENT
 // =====================================================
 
 app.get(
     "/api/documents/:id",
-    async function (
-        req,
-        res
-    ) {
+    async function (req, res) {
 
         try {
 
@@ -2058,7 +2118,6 @@ app.get(
                 Number(
                     req.params.id
                 );
-
 
             if (
                 !Number.isInteger(
@@ -2076,7 +2135,6 @@ app.get(
                 });
 
             }
-
 
             const [
                 rows
@@ -2096,11 +2154,8 @@ app.get(
                         WHERE id = ?
                         LIMIT 1
                         `,
-                        [
-                            documentId
-                        ]
+                        [documentId]
                     );
-
 
             if (
                 rows.length === 0
@@ -2117,17 +2172,14 @@ app.get(
 
             }
 
-
             res.json({
 
-                success:
-                    true,
+                success: true,
 
                 document:
                     rows[0]
 
             });
-
 
         } catch (error) {
 
@@ -2135,7 +2187,6 @@ app.get(
                 "GET DOCUMENT ERROR:",
                 error
             );
-
 
             res.status(500).json({
 
@@ -2154,17 +2205,13 @@ app.get(
     }
 );
 
-
 // =====================================================
-// DELETE /api/documents/:id
+// DELETE DOCUMENT
 // =====================================================
 
 app.delete(
     "/api/documents/:id",
-    async function (
-        req,
-        res
-    ) {
+    async function (req, res) {
 
         try {
 
@@ -2172,7 +2219,6 @@ app.delete(
                 Number(
                     req.params.id
                 );
-
 
             if (
                 !Number.isInteger(
@@ -2191,7 +2237,6 @@ app.delete(
 
             }
 
-
             const [
                 result
             ] =
@@ -2202,11 +2247,8 @@ app.delete(
                         DELETE FROM documents
                         WHERE id = ?
                         `,
-                        [
-                            documentId
-                        ]
+                        [documentId]
                     );
-
 
             if (
                 result.affectedRows === 0
@@ -2223,20 +2265,16 @@ app.delete(
 
             }
 
-
             res.json({
 
-                success:
-                    true,
+                success: true,
 
                 message:
                     "Document deleted successfully.",
 
-                documentId:
-                    documentId
+                documentId
 
             });
-
 
         } catch (error) {
 
@@ -2244,7 +2282,6 @@ app.delete(
                 "DELETE DOCUMENT ERROR:",
                 error
             );
-
 
             res.status(500).json({
 
@@ -2263,24 +2300,18 @@ app.delete(
     }
 );
 
-
 // =====================================================
 // REGEX ESCAPE
 // =====================================================
 
-function escapeRegExp(
-    string
-) {
+function escapeRegExp(string) {
 
-    return String(
-        string
-    ).replace(
+    return String(string).replace(
         /[.*+?^${}()|[\]\\]/g,
         "\\$&"
     );
 
 }
-
 
 // =====================================================
 // MULTER / SERVER ERROR HANDLER
@@ -2298,7 +2329,6 @@ app.use(
             "SERVER ERROR:",
             error
         );
-
 
         if (
             error instanceof
@@ -2321,7 +2351,6 @@ app.use(
 
             }
 
-
             if (
                 error.code ===
                 "LIMIT_UNEXPECTED_FILE"
@@ -2340,7 +2369,6 @@ app.use(
 
         }
 
-
         res.status(500).json({
 
             success: false,
@@ -2353,7 +2381,6 @@ app.use(
 
     }
 );
-
 
 // =====================================================
 // START SERVER
@@ -2397,6 +2424,10 @@ app.listen(
 
         console.log(
             "Search API: enabled"
+        );
+
+        console.log(
+            "Authentication API: enabled"
         );
 
         console.log(

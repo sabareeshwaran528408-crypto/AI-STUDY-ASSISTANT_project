@@ -318,3 +318,51 @@ input[type="file"] {
         padding: 20px;
     }
 }
+/* =====================================================
+   ASK AI - DARK MODE FIX
+===================================================== */
+
+html[data-dark-mode="on"] .answer-box {
+    background: #1f2937 !important;
+    color: #f9fafb !important;
+    border-color: #374151 !important;
+}
+
+html[data-dark-mode="on"] .answer-result {
+    background: #111827 !important;
+    color: #f9fafb !important;
+    border-color: #374151 !important;
+}
+
+html[data-dark-mode="on"] .answer-result p {
+    color: #e5e7eb !important;
+}
+
+html[data-dark-mode="on"] .result-header {
+    color: #f9fafb !important;
+}
+
+html[data-dark-mode="on"] .result-header span {
+    color: #9ca3af !important;
+}
+
+html[data-dark-mode="on"] .answer-heading {
+    color: #f9fafb !important;
+}
+
+html[data-dark-mode="on"] .empty-state {
+    background: #1f2937 !important;
+    color: #f9fafb !important;
+}
+
+html[data-dark-mode="on"] .empty-state h3 {
+    color: #f9fafb !important;
+}
+
+html[data-dark-mode="on"] .empty-state p {
+    color: #d1d5db !important;
+}
+
+html[data-dark-mode="on"] .loading {
+    color: #e5e7eb !important;
+}

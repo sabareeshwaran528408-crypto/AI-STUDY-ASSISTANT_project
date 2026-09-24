@@ -11,12 +11,15 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "groq-sdk": "^1.6.0",
+    "jsonwebtoken": "^9.0.3",
     "multer": "^2.3.0",
     "mysql2": "^3.24.4",
+    "nodemailer": "^10.0.10",
     "openai": "^7.12.1",
     "pdf-parse": "^2.4.5",
     "tesseract.js": "^7.0.0"

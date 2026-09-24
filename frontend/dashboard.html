@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="settings.js"></script>
     <title>AI Study Assistant - Dashboard</title>
-
+    <script src="auth.js"></script>
     <style>
         * {
             margin: 0;
@@ -398,10 +398,32 @@
             }
 
         }
+        .logout-button {
+    width: 100%;
+    margin-top: 15px;
+    padding: 12px 15px;
+    border: none;
+    border-radius: 10px;
+    background: #dc2626;
+    color: white;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    text-align: left;
+    transition: 0.2s;
+}
+
+.logout-button:hover {
+    background: #b91c1c;
+    transform: translateY(-1px);
+}
     </style>
 </head>
 
 <body>
+    <script>
+    requireLogin();
+</script>
 
     <!-- ================= SIDEBAR ================= -->
 
@@ -441,6 +463,11 @@
             <a href="settings.html">
                 ⚙️ Settings
             </a>
+            <button
+    class="logout-button"
+    onclick="logout()">
+    🚪 Logout
+</button>
 
         </nav>
 
