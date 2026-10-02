@@ -1,7 +1,8 @@
 // =====================================================
 // AI STUDY ASSISTANT
 // BACKEND SERVER
-// Node.js + Express + MySQL + PDF Processing + Groq AI
+// Node.js + Express + MySQL + Supabase Auth
+// PDF Processing + Groq AI + n8n
 // =====================================================
 
 const express = require("express");
@@ -10,13 +11,12 @@ const multer = require("multer");
 const fs = require("fs");
 const path = require("path");
 const dotenv = require("dotenv");
-const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const { PDFParse } = require("pdf-parse");
 const Groq = require("groq-sdk");
 
 const db = require("./db");
+const supabase = require("./supabase");
 
 // =====================================================
 // LOAD ENVIRONMENT VARIABLES
@@ -29,19 +29,23 @@ dotenv.config();
 // =====================================================
 
 const app = express();
-
 const PORT = process.env.PORT || 5000;
 
 // =====================================================
 // CONFIGURATION CHECK
 // =====================================================
 
-if (!process.env.JWT_SECRET) {
-    console.warn("WARNING: JWT_SECRET is not configured.");
-}
-
 if (!process.env.GROQ_API_KEY) {
     console.warn("WARNING: GROQ_API_KEY is not configured.");
+}
+
+if (
+    !process.env.SUPABASE_URL ||
+    !process.env.SUPABASE_SECRET_KEY
+) {
+    console.warn(
+        "WARNING: Supabase environment variables are not configured."
+    );
 }
 
 // =====================================================
@@ -78,660 +82,863 @@ app.use(
 );
 
 // =====================================================
-// AUTHENTICATION MIDDLEWARE
+// SUPABASE AUTHENTICATION MIDDLEWARE
 // =====================================================
 
-function authenticateToken(req, res, next) {
+async function authenticateToken(req, res, next) {
+
     try {
-        const authHeader = req.headers.authorization;
+
+        const authHeader =
+            req.headers.authorization;
 
         if (!authHeader) {
+
             return res.status(401).json({
                 success: false,
-                message: "Authentication required."
+                message:
+                    "Authentication required."
             });
         }
 
-        const parts = authHeader.split(" ");
+        const parts =
+            authHeader.split(" ");
 
         if (
             parts.length !== 2 ||
             parts[0] !== "Bearer"
         ) {
+
             return res.status(401).json({
                 success: false,
-                message: "Invalid authentication format."
+                message:
+                    "Invalid authentication format."
             });
         }
 
         const token = parts[1];
 
-        if (!process.env.JWT_SECRET) {
-            return res.status(500).json({
+        const {
+            data: { user },
+            error
+        } = await supabase.auth.getUser(token);
+
+        if (error || !user) {
+
+            return res.status(401).json({
                 success: false,
-                message: "JWT secret is not configured."
+                message:
+                    "Invalid or expired login session."
             });
         }
 
-        const decoded = jwt.verify(
-            token,
-            process.env.JWT_SECRET
-        );
-
-        req.user = decoded;
+        req.user = user;
 
         next();
 
     } catch (error) {
+
+        console.error(
+            "Authentication error:",
+            error
+        );
+
         return res.status(401).json({
             success: false,
-            message: "Invalid or expired login session."
+            message:
+                "Invalid or expired login session."
         });
     }
+}
+
+// =====================================================
+// SUPABASE USER HELPERS
+// =====================================================
+
+async function findSupabaseUserByEmail(email) {
+
+    const {
+        data,
+        error
+    } = await supabase.auth.admin.listUsers({
+        page: 1,
+        perPage: 1000
+    });
+
+    if (error) {
+        throw error;
+    }
+
+    const users =
+        data?.users || [];
+
+    return (
+        users.find(
+            user =>
+                String(user.email || "")
+                    .toLowerCase() ===
+                email.toLowerCase()
+        ) || null
+    );
+}
+
+async function findSupabaseUserByResetTokenHash(
+    tokenHash
+) {
+
+    const {
+        data,
+        error
+    } = await supabase.auth.admin.listUsers({
+        page: 1,
+        perPage: 1000
+    });
+
+    if (error) {
+        throw error;
+    }
+
+    const users =
+        data?.users || [];
+
+    const now =
+        Date.now();
+
+    return (
+        users.find(user => {
+
+            const metadata =
+                user.app_metadata || {};
+
+            const storedHash =
+                metadata.reset_token_hash;
+
+            const storedExpiry =
+                Number(
+                    metadata.reset_token_expires || 0
+                );
+
+            return (
+                storedHash === tokenHash &&
+                storedExpiry > now
+            );
+
+        }) || null
+    );
 }
 
 // =====================================================
 // SIGNUP API
 // =====================================================
 
-app.post("/api/auth/signup", async (req, res) => {
+app.post(
+    "/api/auth/signup",
+    async function (req, res) {
 
-    try {
+        try {
 
-        const {
-            name,
-            email,
-            password
-        } = req.body;
+            const {
+                name,
+                email,
+                password
+            } = req.body;
 
-        // -----------------------------
-        // VALIDATION
-        // -----------------------------
+            if (
+                !name ||
+                !email ||
+                !password
+            ) {
 
-        if (!name || !email || !password) {
+                return res.status(400).json({
+                    success: false,
+                    message:
+                        "Name, email and password are required."
+                });
+            }
 
-            return res.status(400).json({
-                success: false,
+            const cleanName =
+                String(name).trim();
+
+            const cleanEmail =
+                String(email)
+                    .trim()
+                    .toLowerCase();
+
+            if (cleanName.length < 2) {
+
+                return res.status(400).json({
+                    success: false,
+                    message:
+                        "Name must contain at least 2 characters."
+                });
+            }
+
+            if (!cleanEmail.includes("@")) {
+
+                return res.status(400).json({
+                    success: false,
+                    message:
+                        "Please enter a valid email address."
+                });
+            }
+
+            if (
+                String(password).length < 6
+            ) {
+
+                return res.status(400).json({
+                    success: false,
+                    message:
+                        "Password must contain at least 6 characters."
+                });
+            }
+
+            // ---------------------------------
+            // CREATE SUPABASE AUTH USER
+            // ---------------------------------
+
+            const {
+                data: authData,
+                error: authError
+            } =
+                await supabase.auth.admin.createUser({
+
+                    email:
+                        cleanEmail,
+
+                    password:
+                        password,
+
+                    email_confirm:
+                        true,
+
+                    user_metadata: {
+                        name:
+                            cleanName
+                    }
+
+                });
+
+            if (authError) {
+
+                console.error(
+                    "Supabase signup error:",
+                    authError
+                );
+
+                const authMessage =
+                    String(
+                        authError.message || ""
+                    ).toLowerCase();
+
+                if (
+                    authMessage.includes("already") ||
+                    authMessage.includes("exists")
+                ) {
+
+                    return res.status(409).json({
+                        success: false,
+                        message:
+                            "An account with this email already exists."
+                    });
+                }
+
+                return res.status(400).json({
+                    success: false,
+                    message:
+                        authError.message ||
+                        "Unable to create account."
+                });
+            }
+
+            const user =
+                authData.user;
+
+            // ---------------------------------
+            // CREATE PROFILE
+            // ---------------------------------
+
+            const {
+                error: profileError
+            } =
+                await supabase
+                    .from("profiles")
+                    .upsert(
+                        {
+                            id:
+                                user.id,
+                            name:
+                                cleanName
+                        },
+                        {
+                            onConflict:
+                                "id"
+                        }
+                    );
+
+            if (profileError) {
+
+                console.error(
+                    "Profile creation error:",
+                    profileError
+                );
+
+                await supabase.auth.admin.deleteUser(
+                    user.id
+                );
+
+                return res.status(500).json({
+                    success: false,
+                    message:
+                        "Account created but profile setup failed."
+                });
+            }
+
+            // ---------------------------------
+            // LOGIN AFTER SIGNUP
+            // ---------------------------------
+
+            const {
+                data: loginData,
+                error: loginError
+            } =
+                await supabase.auth.signInWithPassword({
+                    email:
+                        cleanEmail,
+                    password:
+                        password
+                });
+
+            if (
+                loginError ||
+                !loginData.session
+            ) {
+
+                console.error(
+                    "Automatic login error:",
+                    loginError
+                );
+
+                return res.status(500).json({
+                    success: false,
+                    message:
+                        "Account created, but automatic login failed."
+                });
+            }
+
+            return res.status(201).json({
+
+                success: true,
+
                 message:
-                    "Name, email and password are required."
+                    "Account created successfully.",
+
+                token:
+                    loginData
+                        .session
+                        .access_token,
+
+                user: {
+                    id:
+                        user.id,
+
+                    name:
+                        cleanName,
+
+                    email:
+                        cleanEmail
+                }
+
             });
 
-        }
+        } catch (error) {
 
-        const cleanName = name.trim();
-        const cleanEmail = email.trim().toLowerCase();
-
-        if (cleanName.length < 2) {
-
-            return res.status(400).json({
-                success: false,
-                message:
-                    "Name must contain at least 2 characters."
-            });
-
-        }
-
-        if (!cleanEmail.includes("@")) {
-
-            return res.status(400).json({
-                success: false,
-                message:
-                    "Please enter a valid email address."
-            });
-
-        }
-
-        if (password.length < 6) {
-
-            return res.status(400).json({
-                success: false,
-                message:
-                    "Password must contain at least 6 characters."
-            });
-
-        }
-
-        // -----------------------------
-        // CHECK EXISTING USER
-        // -----------------------------
-
-        const [existingUsers] =
-            await db.promise().query(
-                "SELECT id FROM users WHERE email = ? LIMIT 1",
-                [cleanEmail]
+            console.error(
+                "Signup error:",
+                error
             );
 
-        if (existingUsers.length > 0) {
-
-            return res.status(409).json({
+            return res.status(500).json({
                 success: false,
                 message:
-                    "An account with this email already exists."
+                    "Server error while creating account."
             });
-
         }
-
-        // -----------------------------
-        // HASH PASSWORD
-        // -----------------------------
-
-        const hashedPassword =
-            await bcrypt.hash(password, 10);
-
-        // -----------------------------
-        // CREATE USER
-        // -----------------------------
-
-        const [result] =
-            await db.promise().query(
-                `
-                INSERT INTO users
-                (name, email, password)
-                VALUES (?, ?, ?)
-                `,
-                [
-                    cleanName,
-                    cleanEmail,
-                    hashedPassword
-                ]
-            );
-
-        // -----------------------------
-        // CREATE JWT
-        // -----------------------------
-
-        const token = jwt.sign(
-            {
-                id: result.insertId,
-                name: cleanName,
-                email: cleanEmail
-            },
-            process.env.JWT_SECRET,
-            {
-                expiresIn: "7d"
-            }
-        );
-
-        // -----------------------------
-        // RESPONSE
-        // -----------------------------
-
-        res.status(201).json({
-            success: true,
-            message:
-                "Account created successfully.",
-            token,
-            user: {
-                id: result.insertId,
-                name: cleanName,
-                email: cleanEmail
-            }
-        });
-
-    } catch (error) {
-
-        console.error(
-            "Signup error:",
-            error
-        );
-
-        res.status(500).json({
-            success: false,
-            message:
-                "Server error while creating account."
-        });
-
     }
-
-});
+);
 
 // =====================================================
 // LOGIN API
 // =====================================================
 
-app.post("/api/auth/login", async (req, res) => {
+app.post(
+    "/api/auth/login",
+    async function (req, res) {
 
-    try {
+        try {
 
-        const {
-            email,
-            password
-        } = req.body;
+            const {
+                email,
+                password
+            } = req.body;
 
-        // -----------------------------
-        // VALIDATION
-        // -----------------------------
+            if (
+                !email ||
+                !password
+            ) {
 
-        if (!email || !password) {
-
-            return res.status(400).json({
-                success: false,
-                message:
-                    "Email and password are required."
-            });
-
-        }
-
-        const cleanEmail =
-            email.trim().toLowerCase();
-
-        // -----------------------------
-        // FIND USER
-        // -----------------------------
-
-        const [users] =
-            await db.promise().query(
-                `
-                SELECT
-                    id,
-                    name,
-                    email,
-                    password
-                FROM users
-                WHERE email = ?
-                LIMIT 1
-                `,
-                [cleanEmail]
-            );
-
-        if (users.length === 0) {
-
-            return res.status(401).json({
-                success: false,
-                message:
-                    "Invalid email or password."
-            });
-
-        }
-
-        const user = users[0];
-
-        // -----------------------------
-        // COMPARE PASSWORD
-        // -----------------------------
-
-        const passwordMatches =
-            await bcrypt.compare(
-                password,
-                user.password
-            );
-
-        if (!passwordMatches) {
-
-            return res.status(401).json({
-                success: false,
-                message:
-                    "Invalid email or password."
-            });
-
-        }
-
-        // -----------------------------
-        // CREATE TOKEN
-        // -----------------------------
-
-        const token = jwt.sign(
-            {
-                id: user.id,
-                name: user.name,
-                email: user.email
-            },
-            process.env.JWT_SECRET,
-            {
-                expiresIn: "7d"
+                return res.status(400).json({
+                    success: false,
+                    message:
+                        "Email and password are required."
+                });
             }
-        );
 
-        // -----------------------------
-        // RESPONSE
-        // -----------------------------
+            const cleanEmail =
+                String(email)
+                    .trim()
+                    .toLowerCase();
 
-        res.json({
-            success: true,
-            message:
-                "Login successful.",
-            token,
-            user: {
-                id: user.id,
-                name: user.name,
-                email: user.email
+            const {
+                data,
+                error
+            } =
+                await supabase.auth.signInWithPassword({
+                    email:
+                        cleanEmail,
+                    password:
+                        password
+                });
+
+            if (
+                error ||
+                !data.user ||
+                !data.session
+            ) {
+
+                return res.status(401).json({
+                    success: false,
+                    message:
+                        "Invalid email or password."
+                });
             }
-        });
 
-    } catch (error) {
+            const user =
+                data.user;
 
-        console.error(
-            "Login error:",
-            error
-        );
+            const {
+                data: profile,
+                error: profileError
+            } =
+                await supabase
+                    .from("profiles")
+                    .select(
+                        "id, name, created_at"
+                    )
+                    .eq(
+                        "id",
+                        user.id
+                    )
+                    .maybeSingle();
 
-        res.status(500).json({
-            success: false,
-            message:
-                "Server error while logging in."
-        });
+            if (profileError) {
 
-    }
-
-});
-// =====================================================
-// FORGOT PASSWORD API
-// =====================================================
-
-app.post("/api/auth/forgot-password", async (req, res) => {
-
-    try {
-
-        const { email } = req.body;
-
-        if (!email) {
-            return res.status(400).json({
-                success: false,
-                message: "Email is required."
-            });
-        }
-
-        const cleanEmail =
-            email.trim().toLowerCase();
-
-        // ---------------------------------------------
-        // FIND USER
-        // ---------------------------------------------
-
-        const [users] =
-            await db.promise().query(
-                `
-                SELECT
-                    id,
-                    name,
-                    email
-                FROM users
-                WHERE email = ?
-                LIMIT 1
-                `,
-                [cleanEmail]
-            );
-
-        // Always return the same message.
-        // This prevents revealing whether an email exists.
-
-        if (users.length === 0) {
+                console.error(
+                    "Profile fetch error:",
+                    profileError
+                );
+            }
 
             return res.json({
+
                 success: true,
+
                 message:
-                    "If an account exists with this email, a password reset link has been sent."
-            });
+                    "Login successful.",
 
-        }
+                token:
+                    data
+                        .session
+                        .access_token,
 
-        const user = users[0];
+                user: {
 
-        // ---------------------------------------------
-        // CREATE SECURE TOKEN
-        // ---------------------------------------------
+                    id:
+                        user.id,
 
-        const resetToken =
-            crypto
-                .randomBytes(32)
-                .toString("hex");
+                    name:
+                        profile?.name ||
+                        user.user_metadata?.name ||
+                        "",
 
-        // Store only the hash in database
+                    email:
+                        user.email
 
-        const tokenHash =
-            crypto
-                .createHash("sha256")
-                .update(resetToken)
-                .digest("hex");
-
-        // Token expires in 15 minutes
-
-        const expiresAt =
-            new Date(
-                Date.now() + 15 * 60 * 1000
-            );
-
-        // ---------------------------------------------
-        // SAVE TOKEN
-        // ---------------------------------------------
-
-        await db.promise().query(
-            `
-            UPDATE users
-            SET
-                reset_token = ?,
-                reset_token_expires = ?
-            WHERE id = ?
-            `,
-            [
-                tokenHash,
-                expiresAt,
-                user.id
-            ]
-        );
-
-        // ---------------------------------------------
-        // CREATE RESET LINK
-        // ---------------------------------------------
-
-        const frontendUrl =
-            process.env.FRONTEND_URL ||
-            "http://localhost:3000";
-
-        const resetLink =
-            `${frontendUrl}/reset-password.html?token=${resetToken}`;
-
-        // ---------------------------------------------
-        // SEND TO N8N
-        // ---------------------------------------------
-
-        const n8nWebhook =
-            process.env.N8N_RESET_WEBHOOK_URL;
-
-        if (!n8nWebhook) {
-
-            console.error(
-                "N8N_RESET_WEBHOOK_URL is not configured."
-            );
-
-            return res.status(500).json({
-                success: false,
-                message:
-                    "Password reset email service is not configured."
-            });
-
-        }
-
-        const n8nResponse =
-            await fetch(
-                n8nWebhook,
-                {
-                    method: "POST",
-
-                    headers: {
-                        "Content-Type":
-                            "application/json"
-                    },
-
-                    body: JSON.stringify({
-                        name: user.name,
-                        email: user.email,
-                        resetLink: resetLink
-                    })
                 }
-            );
 
-        if (!n8nResponse.ok) {
+            });
+
+        } catch (error) {
 
             console.error(
-                "n8n webhook failed:",
-                n8nResponse.status
+                "Login error:",
+                error
             );
 
             return res.status(500).json({
                 success: false,
                 message:
-                    "Unable to send password reset email."
+                    "Server error while logging in."
+            });
+        }
+    }
+);
+
+// =====================================================
+// FORGOT PASSWORD API
+// SUPABASE AUTH + N8N
+// =====================================================
+
+app.post(
+    "/api/auth/forgot-password",
+    async function (req, res) {
+
+        try {
+
+            const {
+                email
+            } = req.body;
+
+            if (!email) {
+
+                return res.status(400).json({
+                    success: false,
+                    message:
+                        "Email is required."
+                });
+            }
+
+            const cleanEmail =
+                String(email)
+                    .trim()
+                    .toLowerCase();
+
+            const genericMessage =
+                "If an account exists with this email, a password reset link has been sent.";
+
+            const user =
+                await findSupabaseUserByEmail(
+                    cleanEmail
+                );
+
+            if (!user) {
+
+                return res.json({
+                    success: true,
+                    message:
+                        genericMessage
+                });
+            }
+
+            // ---------------------------------
+            // CREATE RESET TOKEN
+            // ---------------------------------
+
+            const resetToken =
+                crypto
+                    .randomBytes(32)
+                    .toString("hex");
+
+            const tokenHash =
+                crypto
+                    .createHash("sha256")
+                    .update(resetToken)
+                    .digest("hex");
+
+            const expiresAt =
+                Date.now() +
+                15 * 60 * 1000;
+
+            // ---------------------------------
+            // SAVE HASH IN SUPABASE
+            // ---------------------------------
+
+            const currentAppMetadata =
+                user.app_metadata || {};
+
+            const {
+                error: metadataError
+            } =
+                await supabase
+                    .auth
+                    .admin
+                    .updateUserById(
+                        user.id,
+                        {
+                            app_metadata: {
+                                ...currentAppMetadata,
+                                reset_token_hash:
+                                    tokenHash,
+                                reset_token_expires:
+                                    expiresAt
+                            }
+                        }
+                    );
+
+            if (metadataError) {
+
+                console.error(
+                    "Reset-token storage error:",
+                    metadataError
+                );
+
+                return res.status(500).json({
+                    success: false,
+                    message:
+                        "Unable to create password reset request."
+                });
+            }
+
+            // ---------------------------------
+            // RESET LINK
+            // ---------------------------------
+
+            const frontendUrl =
+                process.env.FRONTEND_URL ||
+                "http://localhost:3000";
+
+            const resetLink =
+                `${frontendUrl}/reset-password.html?token=${encodeURIComponent(resetToken)}`;
+
+            // ---------------------------------
+            // N8N WEBHOOK
+            // ---------------------------------
+
+            const n8nWebhook =
+                process.env.N8N_RESET_WEBHOOK_URL;
+
+            if (!n8nWebhook) {
+
+                console.error(
+                    "N8N_RESET_WEBHOOK_URL is not configured."
+                );
+
+                return res.status(500).json({
+                    success: false,
+                    message:
+                        "Password reset email service is not configured."
+                });
+            }
+
+            const n8nResponse =
+                await fetch(
+                    n8nWebhook,
+                    {
+                        method:
+                            "POST",
+
+                        headers: {
+                            "Content-Type":
+                                "application/json"
+                        },
+
+                        body:
+                            JSON.stringify({
+
+                                name:
+                                    user
+                                        .user_metadata
+                                        ?.name ||
+                                    "Student",
+
+                                email:
+                                    user.email,
+
+                                resetLink:
+                                    resetLink
+
+                            })
+                    }
+                );
+
+            if (!n8nResponse.ok) {
+
+                console.error(
+                    "n8n webhook failed:",
+                    n8nResponse.status
+                );
+
+                return res.status(500).json({
+                    success: false,
+                    message:
+                        "Unable to send password reset email."
+                });
+            }
+
+            console.log(
+                "Password reset email requested for:",
+                user.email
+            );
+
+            return res.json({
+
+                success: true,
+
+                message:
+                    genericMessage
+
             });
 
+        } catch (error) {
+
+            console.error(
+                "Forgot password error:",
+                error
+            );
+
+            return res.status(500).json({
+                success: false,
+                message:
+                    "Server error while processing password reset."
+            });
         }
-
-        console.log(
-            "Password reset email requested for:",
-            user.email
-        );
-
-        // ---------------------------------------------
-        // SUCCESS
-        // ---------------------------------------------
-
-        res.json({
-            success: true,
-            message:
-                "If an account exists with this email, a password reset link has been sent."
-        });
-
-    } catch (error) {
-
-        console.error(
-            "Forgot password error:",
-            error
-        );
-
-        res.status(500).json({
-            success: false,
-            message:
-                "Server error while processing password reset."
-        });
-
     }
+);
 
-});
 // =====================================================
 // RESET PASSWORD API
 // =====================================================
 
-app.post("/api/auth/reset-password", async (req, res) => {
+app.post(
+    "/api/auth/reset-password",
+    async function (req, res) {
 
-    try {
+        try {
 
-        const {
-            token,
-            password
-        } = req.body;
+            const {
+                token,
+                password
+            } = req.body;
 
-        if (!token || !password) {
+            if (
+                !token ||
+                !password
+            ) {
 
-            return res.status(400).json({
-                success: false,
+                return res.status(400).json({
+                    success: false,
+                    message:
+                        "Reset token and new password are required."
+                });
+            }
+
+            if (
+                String(password).length < 6
+            ) {
+
+                return res.status(400).json({
+                    success: false,
+                    message:
+                        "Password must contain at least 6 characters."
+                });
+            }
+
+            // ---------------------------------
+            // HASH TOKEN
+            // ---------------------------------
+
+            const tokenHash =
+                crypto
+                    .createHash("sha256")
+                    .update(token)
+                    .digest("hex");
+
+            // ---------------------------------
+            // FIND USER
+            // ---------------------------------
+
+            const user =
+                await findSupabaseUserByResetTokenHash(
+                    tokenHash
+                );
+
+            if (!user) {
+
+                return res.status(400).json({
+                    success: false,
+                    message:
+                        "This reset link is invalid or expired."
+                });
+            }
+
+            const currentAppMetadata =
+                user.app_metadata || {};
+
+            const {
+                reset_token_hash,
+                reset_token_expires,
+                ...remainingAppMetadata
+            } = currentAppMetadata;
+
+            // ---------------------------------
+            // UPDATE SUPABASE PASSWORD
+            // ---------------------------------
+
+            const {
+                error: passwordError
+            } =
+                await supabase
+                    .auth
+                    .admin
+                    .updateUserById(
+                        user.id,
+                        {
+                            password:
+                                password,
+
+                            app_metadata:
+                                remainingAppMetadata
+                        }
+                    );
+
+            if (passwordError) {
+
+                console.error(
+                    "Supabase password update error:",
+                    passwordError
+                );
+
+                return res.status(500).json({
+                    success: false,
+                    message:
+                        "Unable to reset password."
+                });
+            }
+
+            return res.json({
+
+                success: true,
+
                 message:
-                    "Reset token and new password are required."
+                    "Password reset successfully."
+
             });
 
-        }
+        } catch (error) {
 
-        if (password.length < 6) {
-
-            return res.status(400).json({
-                success: false,
-                message:
-                    "Password must contain at least 6 characters."
-            });
-
-        }
-
-        // ---------------------------------------------
-        // HASH TOKEN
-        // ---------------------------------------------
-
-        const tokenHash =
-            crypto
-                .createHash("sha256")
-                .update(token)
-                .digest("hex");
-
-        // ---------------------------------------------
-        // FIND VALID TOKEN
-        // ---------------------------------------------
-
-        const [users] =
-            await db.promise().query(
-                `
-                SELECT
-                    id
-                FROM users
-                WHERE
-                    reset_token = ?
-                    AND reset_token_expires > NOW()
-                LIMIT 1
-                `,
-                [tokenHash]
+            console.error(
+                "Reset password error:",
+                error
             );
 
-        if (users.length === 0) {
-
-            return res.status(400).json({
+            return res.status(500).json({
                 success: false,
                 message:
-                    "This reset link is invalid or expired."
+                    "Server error while resetting password."
             });
-
         }
-
-        const userId =
-            users[0].id;
-
-        // ---------------------------------------------
-        // HASH NEW PASSWORD
-        // ---------------------------------------------
-
-        const hashedPassword =
-            await bcrypt.hash(
-                password,
-                10
-            );
-
-        // ---------------------------------------------
-        // UPDATE PASSWORD
-        // ---------------------------------------------
-
-        await db.promise().query(
-            `
-            UPDATE users
-            SET
-                password = ?,
-                reset_token = NULL,
-                reset_token_expires = NULL
-            WHERE id = ?
-            `,
-            [
-                hashedPassword,
-                userId
-            ]
-        );
-
-        res.json({
-            success: true,
-            message:
-                "Password reset successfully."
-        });
-
-    } catch (error) {
-
-        console.error(
-            "Reset password error:",
-            error
-        );
-
-        res.status(500).json({
-            success: false,
-            message:
-                "Server error while resetting password."
-        });
-
     }
-
-});
+);
 
 // =====================================================
 // CHECK LOGIN / CURRENT USER
@@ -740,38 +947,56 @@ app.post("/api/auth/reset-password", async (req, res) => {
 app.get(
     "/api/auth/me",
     authenticateToken,
-    async (req, res) => {
+    async function (req, res) {
 
         try {
 
-            const [users] =
-                await db.promise().query(
-                    `
-                    SELECT
-                        id,
-                        name,
-                        email,
-                        created_at
-                    FROM users
-                    WHERE id = ?
-                    LIMIT 1
-                    `,
-                    [req.user.id]
+            const {
+                data: profile,
+                error: profileError
+            } =
+                await supabase
+                    .from("profiles")
+                    .select(
+                        "id, name, created_at"
+                    )
+                    .eq(
+                        "id",
+                        req.user.id
+                    )
+                    .maybeSingle();
+
+            if (profileError) {
+
+                console.error(
+                    "Profile fetch error:",
+                    profileError
                 );
-
-            if (users.length === 0) {
-
-                return res.status(404).json({
-                    success: false,
-                    message:
-                        "User not found."
-                });
-
             }
 
-            res.json({
+            return res.json({
+
                 success: true,
-                user: users[0]
+
+                user: {
+
+                    id:
+                        req.user.id,
+
+                    name:
+                        profile?.name ||
+                        req.user.user_metadata?.name ||
+                        "",
+
+                    email:
+                        req.user.email,
+
+                    created_at:
+                        profile?.created_at ||
+                        req.user.created_at
+
+                }
+
             });
 
         } catch (error) {
@@ -781,14 +1006,12 @@ app.get(
                 error
             );
 
-            res.status(500).json({
+            return res.status(500).json({
                 success: false,
                 message:
                     "Unable to verify user."
             });
-
         }
-
     }
 );
 
@@ -797,9 +1020,16 @@ app.get(
 // =====================================================
 
 const uploadDirectory =
-    path.join(__dirname, "uploads");
+    path.join(
+        __dirname,
+        "uploads"
+    );
 
-if (!fs.existsSync(uploadDirectory)) {
+if (
+    !fs.existsSync(
+        uploadDirectory
+    )
+) {
 
     fs.mkdirSync(
         uploadDirectory,
@@ -807,7 +1037,6 @@ if (!fs.existsSync(uploadDirectory)) {
             recursive: true
         }
     );
-
 }
 
 // =====================================================
@@ -817,57 +1046,59 @@ if (!fs.existsSync(uploadDirectory)) {
 const storage =
     multer.diskStorage({
 
-        destination: function (
-            req,
-            file,
-            cb
-        ) {
+        destination:
+            function (
+                req,
+                file,
+                cb
+            ) {
 
-            cb(
-                null,
-                uploadDirectory
-            );
-
-        },
-
-        filename: function (
-            req,
-            file,
-            cb
-        ) {
-
-            const safeName =
-                file.originalname.replace(
-                    /[^a-zA-Z0-9._-]/g,
-                    "_"
+                cb(
+                    null,
+                    uploadDirectory
                 );
+            },
 
-            const uniqueName =
-                Date.now() +
-                "-" +
-                Math.round(
-                    Math.random() * 100000
-                ) +
-                "-" +
-                safeName;
+        filename:
+            function (
+                req,
+                file,
+                cb
+            ) {
 
-            cb(
-                null,
-                uniqueName
-            );
+                const safeName =
+                    file.originalname.replace(
+                        /[^a-zA-Z0-9._-]/g,
+                        "_"
+                    );
 
-        }
+                const uniqueName =
+                    Date.now() +
+                    "-" +
+                    Math.round(
+                        Math.random() * 100000
+                    ) +
+                    "-" +
+                    safeName;
 
+                cb(
+                    null,
+                    uniqueName
+                );
+            }
     });
 
 const upload =
     multer({
 
-        storage: storage,
+        storage:
+            storage,
 
         limits: {
+
             fileSize:
                 100 * 1024 * 1024
+
         },
 
         fileFilter:
@@ -879,8 +1110,7 @@ const upload =
 
                 const isPDF =
                     file.mimetype ===
-                    "application/pdf"
-                    ||
+                    "application/pdf" ||
                     file.originalname
                         .toLowerCase()
                         .endsWith(".pdf");
@@ -892,45 +1122,45 @@ const upload =
                             "Only PDF files are allowed."
                         )
                     );
-
                 }
 
                 cb(
                     null,
                     true
                 );
-
             }
-
     });
 
 // =====================================================
 // ROOT
 // =====================================================
 
-app.get("/", function (req, res) {
+app.get(
+    "/",
+    function (req, res) {
 
-    res.json({
+        res.json({
 
-        success: true,
+            success:
+                true,
 
-        message:
-            "AI Study Assistant backend is running.",
+            message:
+                "AI Study Assistant backend is running.",
 
-        status:
-            "online",
+            status:
+                "online",
 
-        database:
-            "MySQL",
+            database:
+                "MySQL documents + Supabase Auth",
 
-        groqAI:
-            Boolean(
-                process.env.GROQ_API_KEY
-            )
+            groqAI:
+                Boolean(
+                    process.env.GROQ_API_KEY
+                )
 
-    });
-
-});
+        });
+    }
+);
 
 // =====================================================
 // HEALTH CHECK
@@ -944,17 +1174,20 @@ app.get(
 
             await db
                 .promise()
-                .query("SELECT 1");
+                .query(
+                    "SELECT 1"
+                );
 
             res.json({
 
-                success: true,
+                success:
+                    true,
 
                 backend:
                     "online",
 
                 database:
-                    "connected",
+                    "MySQL document storage connected",
 
                 groqAI:
                     Boolean(
@@ -975,13 +1208,14 @@ app.get(
 
             res.status(500).json({
 
-                success: false,
+                success:
+                    false,
 
                 backend:
                     "online",
 
                 database:
-                    "error",
+                    "MySQL document storage error",
 
                 groqAI:
                     Boolean(
@@ -989,9 +1223,7 @@ app.get(
                     )
 
             });
-
         }
-
     }
 );
 
@@ -1006,24 +1238,19 @@ function cleanText(text) {
     }
 
     return String(text)
-
         .replace(
             /\r/g,
             ""
         )
-
         .replace(
             /[ \t]+/g,
             " "
         )
-
         .replace(
             /\n{4,}/g,
             "\n\n"
         )
-
         .trim();
-
 }
 
 // =====================================================
@@ -1035,18 +1262,23 @@ async function createChunks(
     text
 ) {
 
-    const chunkSize = 1200;
+    const chunkSize =
+        1200;
 
-    const overlap = 150;
+    const overlap =
+        150;
 
     const step =
         chunkSize - overlap;
 
-    const rows = [];
+    const rows =
+        [];
 
-    let chunkIndex = 0;
+    let chunkIndex =
+        0;
 
-    let start = 0;
+    let start =
+        0;
 
     while (
         start < text.length
@@ -1069,18 +1301,19 @@ async function createChunks(
             ]);
 
             chunkIndex++;
-
         }
 
         start += step;
-
     }
 
-    if (rows.length === 0) {
+    if (
+        rows.length === 0
+    ) {
         return 0;
     }
 
-    const batchSize = 200;
+    const batchSize =
+        200;
 
     for (
         let i = 0;
@@ -1108,11 +1341,9 @@ async function createChunks(
                 `,
                 [batch]
             );
-
     }
 
     return rows.length;
-
 }
 
 // =====================================================
@@ -1124,7 +1355,8 @@ app.post(
     upload.single("document"),
     async function (req, res) {
 
-        let filePath = null;
+        let filePath =
+            null;
 
         try {
 
@@ -1135,7 +1367,6 @@ app.post(
                     message:
                         "Please upload a PDF file."
                 });
-
             }
 
             filePath =
@@ -1159,10 +1390,6 @@ app.post(
                 "MB"
             );
 
-            // -----------------------------
-            // READ PDF
-            // -----------------------------
-
             const pdfBuffer =
                 fs.readFileSync(
                     filePath
@@ -1172,13 +1399,10 @@ app.post(
                 "Reading PDF..."
             );
 
-            // -----------------------------
-            // PDF PARSER
-            // -----------------------------
-
             const parser =
                 new PDFParse({
-                    data: pdfBuffer
+                    data:
+                        pdfBuffer
                 });
 
             const result =
@@ -1196,9 +1420,9 @@ app.post(
                 extractedText.length
             );
 
-            // -----------------------------
+            // ---------------------------------
             // SCANNED PDF
-            // -----------------------------
+            // ---------------------------------
 
             if (
                 extractedText.length < 20
@@ -1215,38 +1439,37 @@ app.post(
                             filePath
                         )
                     ) {
+
                         fs.unlinkSync(
                             filePath
                         );
                     }
 
-                } catch (
-                    cleanupError
-                ) {
+                } catch (cleanupError) {
 
                     console.log(
                         "Cleanup error:",
                         cleanupError.message
                     );
-
                 }
 
                 return res.status(400).json({
 
-                    success: false,
+                    success:
+                        false,
 
-                    scanned: true,
+                    scanned:
+                        true,
 
                     message:
                         "Could not extract enough text from this PDF. It may be scanned/image-based. Browser OCR is required."
 
                 });
-
             }
 
-            // -----------------------------
-            // INSERT DOCUMENT
-            // -----------------------------
+            // ---------------------------------
+            // SAVE DOCUMENT
+            // ---------------------------------
 
             console.log(
                 "Saving document to MySQL..."
@@ -1285,10 +1508,6 @@ app.post(
                 documentId
             );
 
-            // -----------------------------
-            // CREATE CHUNKS
-            // -----------------------------
-
             console.log(
                 "Creating chunks..."
             );
@@ -1304,14 +1523,17 @@ app.post(
                 chunks
             );
 
-            res.json({
+            return res.json({
 
-                success: true,
+                success:
+                    true,
 
                 message:
                     "PDF uploaded and processed successfully.",
 
-                documentId,
+                documentId:
+
+                    documentId,
 
                 fileName:
                     originalFileName,
@@ -1319,7 +1541,8 @@ app.post(
                 characters:
                     extractedText.length,
 
-                chunks
+                chunks:
+                    chunks
 
             });
 
@@ -1339,27 +1562,25 @@ app.post(
                             filePath
                         )
                     ) {
+
                         fs.unlinkSync(
                             filePath
                         );
                     }
 
-                } catch (
-                    cleanupError
-                ) {
+                } catch (cleanupError) {
 
                     console.log(
                         "Cleanup error:",
                         cleanupError.message
                     );
-
                 }
-
             }
 
-            res.status(500).json({
+            return res.status(500).json({
 
-                success: false,
+                success:
+                    false,
 
                 message:
                     "Failed to process PDF.",
@@ -1368,9 +1589,7 @@ app.post(
                     error.message
 
             });
-
         }
-
     }
 );
 
@@ -1395,14 +1614,10 @@ app.post(
             ) {
 
                 return res.status(400).json({
-
                     success: false,
-
                     message:
                         "File name and text are required."
-
                 });
-
             }
 
             const cleanedText =
@@ -1413,14 +1628,10 @@ app.post(
             ) {
 
                 return res.status(400).json({
-
                     success: false,
-
                     message:
                         "OCR text is too short."
-
                 });
-
             }
 
             console.log(
@@ -1467,26 +1678,25 @@ app.post(
                     cleanedText
                 );
 
-            console.log(
-                "Browser OCR document:",
-                documentId
-            );
+            return res.json({
 
-            res.json({
-
-                success: true,
+                success:
+                    true,
 
                 message:
                     "OCR text saved successfully.",
 
-                documentId,
+                documentId:
+                    documentId,
 
-                fileName,
+                fileName:
+                    fileName,
 
                 characters:
                     cleanedText.length,
 
-                chunks
+                chunks:
+                    chunks
 
             });
 
@@ -1497,9 +1707,10 @@ app.post(
                 error
             );
 
-            res.status(500).json({
+            return res.status(500).json({
 
-                success: false,
+                success:
+                    false,
 
                 message:
                     "Failed to save OCR text.",
@@ -1508,9 +1719,7 @@ app.post(
                     error.message
 
             });
-
         }
-
     }
 );
 
@@ -1545,9 +1754,10 @@ app.get(
                         `
                     );
 
-            res.json({
+            return res.json({
 
-                success: true,
+                success:
+                    true,
 
                 documents:
                     rows
@@ -1561,9 +1771,10 @@ app.get(
                 error
             );
 
-            res.status(500).json({
+            return res.status(500).json({
 
-                success: false,
+                success:
+                    false,
 
                 message:
                     "Failed to load documents.",
@@ -1572,9 +1783,7 @@ app.get(
                     error.message
 
             });
-
         }
-
     }
 );
 
@@ -1613,19 +1822,15 @@ app.get(
             ) {
 
                 return res.json({
-
                     success: true,
-
-                    document:
-                        null
-
+                    document: null
                 });
-
             }
 
-            res.json({
+            return res.json({
 
-                success: true,
+                success:
+                    true,
 
                 document:
                     rows[0]
@@ -1639,9 +1844,10 @@ app.get(
                 error
             );
 
-            res.status(500).json({
+            return res.status(500).json({
 
-                success: false,
+                success:
+                    false,
 
                 message:
                     "Failed to load latest document.",
@@ -1650,9 +1856,7 @@ app.get(
                     error.message
 
             });
-
         }
-
     }
 );
 
@@ -1684,14 +1888,10 @@ app.get(
             ) {
 
                 return res.status(400).json({
-
                     success: false,
-
                     message:
                         "Valid documentId is required."
-
                 });
-
             }
 
             if (
@@ -1699,14 +1899,10 @@ app.get(
             ) {
 
                 return res.status(400).json({
-
                     success: false,
-
                     message:
                         "Search question is required."
-
                 });
-
             }
 
             const words =
@@ -1728,14 +1924,16 @@ app.get(
 
                 return res.json({
 
-                    success: true,
+                    success:
+                        true,
 
-                    query,
+                    query:
+                        query,
 
-                    results: []
+                    results:
+                        []
 
                 });
-
             }
 
             const [
@@ -1754,7 +1952,9 @@ app.get(
                         WHERE document_id = ?
                         ORDER BY chunk_index ASC
                         `,
-                        [documentId]
+                        [
+                            documentId
+                        ]
                     );
 
             const scored =
@@ -1765,7 +1965,8 @@ app.get(
                             chunk.chunk_text
                                 .toLowerCase();
 
-                        let score = 0;
+                        let score =
+                            0;
 
                         for (
                             const word
@@ -1788,9 +1989,7 @@ app.get(
 
                                 score +=
                                     matches.length;
-
                             }
-
                         }
 
                         return {
@@ -1807,10 +2006,10 @@ app.get(
                             chunk_text:
                                 chunk.chunk_text,
 
-                            score
+                            score:
+                                score
 
                         };
-
                     }
                 );
 
@@ -1824,15 +2023,21 @@ app.get(
                         (a, b) =>
                             b.score - a.score
                     )
-                    .slice(0, 8);
+                    .slice(
+                        0,
+                        8
+                    );
 
-            res.json({
+            return res.json({
 
-                success: true,
+                success:
+                    true,
 
-                query,
+                query:
+                    query,
 
-                results
+                results:
+                    results
 
             });
 
@@ -1843,9 +2048,10 @@ app.get(
                 error
             );
 
-            res.status(500).json({
+            return res.status(500).json({
 
-                success: false,
+                success:
+                    false,
 
                 message:
                     "Document search failed.",
@@ -1854,9 +2060,7 @@ app.get(
                     error.message
 
             });
-
         }
-
     }
 );
 
@@ -1887,27 +2091,19 @@ app.post(
             ) {
 
                 return res.status(400).json({
-
                     success: false,
-
                     message:
                         "Valid documentId is required."
-
                 });
-
             }
 
             if (!question) {
 
                 return res.status(400).json({
-
                     success: false,
-
                     message:
                         "Question is required."
-
                 });
-
             }
 
             if (
@@ -1915,19 +2111,11 @@ app.post(
             ) {
 
                 return res.status(500).json({
-
                     success: false,
-
                     message:
                         "Groq API key is not configured."
-
                 });
-
             }
-
-            // -----------------------------
-            // GET DOCUMENT
-            // -----------------------------
 
             const [
                 documentRows
@@ -1943,7 +2131,9 @@ app.post(
                         WHERE id = ?
                         LIMIT 1
                         `,
-                        [documentId]
+                        [
+                            documentId
+                        ]
                     );
 
             if (
@@ -1951,19 +2141,11 @@ app.post(
             ) {
 
                 return res.status(404).json({
-
                     success: false,
-
                     message:
                         "Document not found."
-
                 });
-
             }
-
-            // -----------------------------
-            // QUESTION WORDS
-            // -----------------------------
 
             const words =
                 question
@@ -1977,10 +2159,6 @@ app.post(
                         word =>
                             word.length > 2
                     );
-
-            // -----------------------------
-            // GET CHUNKS
-            // -----------------------------
 
             const [
                 chunks
@@ -1998,7 +2176,9 @@ app.post(
                         WHERE document_id = ?
                         ORDER BY chunk_index ASC
                         `,
-                        [documentId]
+                        [
+                            documentId
+                        ]
                     );
 
             if (
@@ -2006,19 +2186,11 @@ app.post(
             ) {
 
                 return res.status(404).json({
-
                     success: false,
-
                     message:
                         "No processed content was found for this document."
-
                 });
-
             }
-
-            // -----------------------------
-            // SCORE CHUNKS
-            // -----------------------------
 
             const scored =
                 chunks.map(
@@ -2028,7 +2200,8 @@ app.post(
                             chunk.chunk_text
                                 .toLowerCase();
 
-                        let score = 0;
+                        let score =
+                            0;
 
                         for (
                             const word
@@ -2051,16 +2224,13 @@ app.post(
 
                                 score +=
                                     matches.length;
-
                             }
-
                         }
 
                         return {
                             ...chunk,
                             score
                         };
-
                     }
                 );
 
@@ -2074,7 +2244,10 @@ app.post(
                         (a, b) =>
                             b.score - a.score
                     )
-                    .slice(0, 6);
+                    .slice(
+                        0,
+                        6
+                    );
 
             if (
                 relevantChunks.length === 0
@@ -2082,22 +2255,20 @@ app.post(
 
                 return res.json({
 
-                    success: true,
+                    success:
+                        true,
 
-                    question,
+                    question:
+                        question,
 
                     answer:
                         "I could not find relevant information in the selected question bank.",
 
-                    sources: []
+                    sources:
+                        []
 
                 });
-
             }
-
-            // -----------------------------
-            // BUILD CONTEXT
-            // -----------------------------
 
             const context =
                 relevantChunks
@@ -2111,10 +2282,6 @@ app.post(
                     .join(
                         "\n\n---\n\n"
                     );
-
-            // -----------------------------
-            // GROQ
-            // -----------------------------
 
             const completion =
                 await groq.chat.completions.create({
@@ -2141,22 +2308,19 @@ app.post(
                                     "If the context does not contain enough information, clearly say that the answer is not available in the selected question bank.",
                                     "Do not invent facts, questions, page numbers, or answers.",
                                     "Give a clear, student-friendly answer."
-                                ].join(" ")
-
+                                ].join(
+                                    " "
+                                )
                         },
 
                         {
-
                             role:
                                 "user",
 
                             content:
                                 `QUESTION:\n${question}\n\nQUESTION-BANK CONTEXT:\n${context}`
-
                         }
-
                     ]
-
                 });
 
             const answer =
@@ -2164,22 +2328,25 @@ app.post(
                     .choices?.[0]
                     ?.message
                     ?.content
-                    ?.trim()
-                ||
+                    ?.trim() ||
                 "I could not generate an answer.";
 
-            res.json({
+            return res.json({
 
-                success: true,
+                success:
+                    true,
 
-                question,
+                question:
+                    question,
 
-                answer,
+                answer:
+                    answer,
 
                 model:
                     GROQ_MODEL,
 
-                documentId,
+                documentId:
+                    documentId,
 
                 documentName:
                     documentRows[0]
@@ -2200,7 +2367,6 @@ app.post(
 
                         })
                     )
-
             });
 
         } catch (error) {
@@ -2210,9 +2376,10 @@ app.post(
                 error
             );
 
-            res.status(500).json({
+            return res.status(500).json({
 
-                success: false,
+                success:
+                    false,
 
                 message:
                     "AI answer generation failed.",
@@ -2221,9 +2388,7 @@ app.post(
                     error.message
 
             });
-
         }
-
     }
 );
 
@@ -2262,14 +2427,10 @@ app.post(
             if (!message) {
 
                 return res.status(400).json({
-
                     success: false,
-
                     message:
                         "Message is required."
-
                 });
-
             }
 
             if (
@@ -2277,19 +2438,11 @@ app.post(
             ) {
 
                 return res.status(500).json({
-
                     success: false,
-
                     message:
                         "Groq API key is not configured."
-
                 });
-
             }
-
-            // -----------------------------
-            // TEMPORARY MEMORY
-            // -----------------------------
 
             const safeMemory =
                 memory
@@ -2316,25 +2469,34 @@ app.post(
 
             const systemPrompt =
                 [
+
                     "You are AI Study Assistant, a friendly student learning assistant.",
+
                     "Help with programming, AI, machine learning, databases, mathematics, projects, exams, and general study questions.",
+
                     "Explain concepts clearly and at a student-friendly level.",
+
                     "Do not invent information.",
+
                     "If the user asks about their own project, use the temporary context provided.",
+
                     userName
                         ? `The student's name is ${userName}.`
                         : "",
+
                     memorySummary
                         ? `Temporary memory summary: ${memorySummary}`
                         : "",
-                    "This memory is temporary for the current browser session."
-                ]
-                    .filter(Boolean)
-                    .join(" ");
 
-            // -----------------------------
-            // BUILD MESSAGES
-            // -----------------------------
+                    "This memory is temporary for the current browser session."
+
+                ]
+                    .filter(
+                        Boolean
+                    )
+                    .join(
+                        " "
+                    );
 
             const messages = [
 
@@ -2355,12 +2517,7 @@ app.post(
                     content:
                         message
                 }
-
             ];
-
-            // -----------------------------
-            // GROQ
-            // -----------------------------
 
             const completion =
                 await groq.chat.completions.create({
@@ -2374,7 +2531,8 @@ app.post(
                     max_completion_tokens:
                         1200,
 
-                    messages
+                    messages:
+                        messages
 
                 });
 
@@ -2383,15 +2541,16 @@ app.post(
                     .choices?.[0]
                     ?.message
                     ?.content
-                    ?.trim()
-                ||
+                    ?.trim() ||
                 "Sorry, I could not generate a response.";
 
-            res.json({
+            return res.json({
 
-                success: true,
+                success:
+                    true,
 
-                reply,
+                reply:
+                    reply,
 
                 model:
                     GROQ_MODEL
@@ -2405,9 +2564,10 @@ app.post(
                 error
             );
 
-            res.status(500).json({
+            return res.status(500).json({
 
-                success: false,
+                success:
+                    false,
 
                 message:
                     "Chatbot response failed.",
@@ -2416,9 +2576,7 @@ app.post(
                     error.message
 
             });
-
         }
-
     }
 );
 
@@ -2444,14 +2602,10 @@ app.get(
             ) {
 
                 return res.status(400).json({
-
                     success: false,
-
                     message:
                         "Invalid document ID."
-
                 });
-
             }
 
             const [
@@ -2472,7 +2626,9 @@ app.get(
                         WHERE id = ?
                         LIMIT 1
                         `,
-                        [documentId]
+                        [
+                            documentId
+                        ]
                     );
 
             if (
@@ -2480,19 +2636,16 @@ app.get(
             ) {
 
                 return res.status(404).json({
-
                     success: false,
-
                     message:
                         "Document not found."
-
                 });
-
             }
 
-            res.json({
+            return res.json({
 
-                success: true,
+                success:
+                    true,
 
                 document:
                     rows[0]
@@ -2506,9 +2659,10 @@ app.get(
                 error
             );
 
-            res.status(500).json({
+            return res.status(500).json({
 
-                success: false,
+                success:
+                    false,
 
                 message:
                     "Failed to load document.",
@@ -2517,9 +2671,7 @@ app.get(
                     error.message
 
             });
-
         }
-
     }
 );
 
@@ -2545,14 +2697,10 @@ app.delete(
             ) {
 
                 return res.status(400).json({
-
                     success: false,
-
                     message:
                         "Invalid document ID."
-
                 });
-
             }
 
             const [
@@ -2565,7 +2713,9 @@ app.delete(
                         DELETE FROM documents
                         WHERE id = ?
                         `,
-                        [documentId]
+                        [
+                            documentId
+                        ]
                     );
 
             if (
@@ -2573,24 +2723,22 @@ app.delete(
             ) {
 
                 return res.status(404).json({
-
                     success: false,
-
                     message:
                         "Document not found."
-
                 });
-
             }
 
-            res.json({
+            return res.json({
 
-                success: true,
+                success:
+                    true,
 
                 message:
                     "Document deleted successfully.",
 
-                documentId
+                documentId:
+                    documentId
 
             });
 
@@ -2601,9 +2749,10 @@ app.delete(
                 error
             );
 
-            res.status(500).json({
+            return res.status(500).json({
 
-                success: false,
+                success:
+                    false,
 
                 message:
                     "Failed to delete document.",
@@ -2612,9 +2761,7 @@ app.delete(
                     error.message
 
             });
-
         }
-
     }
 );
 
@@ -2622,13 +2769,16 @@ app.delete(
 // REGEX ESCAPE
 // =====================================================
 
-function escapeRegExp(string) {
+function escapeRegExp(
+    string
+) {
 
-    return String(string).replace(
+    return String(
+        string
+    ).replace(
         /[.*+?^${}()|[\]\\]/g,
         "\\$&"
     );
-
 }
 
 // =====================================================
@@ -2660,13 +2810,13 @@ app.use(
 
                 return res.status(400).json({
 
-                    success: false,
+                    success:
+                        false,
 
                     message:
                         "PDF is too large. Maximum size is 100 MB."
 
                 });
-
             }
 
             if (
@@ -2676,27 +2826,26 @@ app.use(
 
                 return res.status(400).json({
 
-                    success: false,
+                    success:
+                        false,
 
                     message:
                         'Unexpected upload field. Use field name "document".'
 
                 });
-
             }
-
         }
 
-        res.status(500).json({
+        return res.status(500).json({
 
-            success: false,
+            success:
+                false,
 
             message:
                 error.message ||
                 "Internal server error."
 
         });
-
     }
 );
 
@@ -2725,7 +2874,11 @@ app.listen(
         );
 
         console.log(
-            "MySQL database: configured"
+            "MySQL document storage: configured"
+        );
+
+        console.log(
+            "Supabase authentication: enabled"
         );
 
         console.log(
@@ -2765,12 +2918,15 @@ app.listen(
         );
 
         console.log(
+            "Password reset: Supabase + n8n"
+        );
+
+        console.log(
             "Optimized chunk insertion: enabled"
         );
 
         console.log(
             "========================================"
         );
-
     }
 );

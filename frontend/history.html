@@ -21,6 +21,9 @@ rel="stylesheet"
 href="style.css"
 >
 
+<link rel="stylesheet" href="app-theme.css">
+<script src="app-shell.js" defer></script>
+<script src="app-history.js" defer></script>
 </head>
 
 
@@ -65,7 +68,7 @@ STUDY
 
 
 <a
-href="index.html"
+href="dashboard.html"
 class="nav"
 >
 🏠 Dashboard
@@ -117,45 +120,30 @@ class="nav"
 
 <main>
 
-<h1>
-Study History
-</h1>
-
-
-<p class="subtitle">
-Your study activity.
-</p>
-
-
-<div class="card">
-
-<p>
-📄 Uploaded documents are stored in Railway MySQL.
-</p>
-
-
-<p>
-🤖 Questions are searched against indexed document chunks.
-</p>
-
-
-<p class="small">
-
-Detailed question history can be added later.
-
-</p>
-
+<div class="history-page-header">
+    <div>
+        <h1>Study History</h1>
+        <p class="subtitle">A timeline of your uploaded study materials.</p>
+    </div>
+    <a class="history-library-link" href="documents.html">Open document library</a>
 </div>
+
+<section class="history-panel" aria-label="Document upload activity">
+    <div class="history-controls">
+        <label for="historySearch">Find an upload</label>
+        <input id="historySearch" type="search" placeholder="Search filenames">
+        <span id="activityStatus" class="activity-status" aria-live="polite">Loading activity…</span>
+    </div>
+    <div id="activityTimeline" class="activity-timeline" aria-live="polite">
+        <div class="activity-empty">Loading your document activity…</div>
+    </div>
+    <p class="history-note">Question and answer conversations are not currently stored as history.</p>
+</section>
 
 </main>
 
 </div>
 
-
-
-<script
-src="app.js">
-</script>
 
 
 </body>

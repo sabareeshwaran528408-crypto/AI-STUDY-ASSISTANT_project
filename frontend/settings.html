@@ -849,6 +849,9 @@
 
     </style>
 
+    <link rel="stylesheet" href="app-theme.css">
+    <script src="app-shell.js" defer></script>
+    <script src="app-interactions.js" defer></script>
 </head>
 
 
@@ -895,7 +898,7 @@
     <nav>
 
         <a
-            href="index.html"
+            href="dashboard.html"
             class="nav"
         >
             🏠 Dashboard
@@ -974,6 +977,20 @@
             Customize your AI Study Assistant experience.
         </p>
 
+    </section>
+
+    <section class="settings-account" aria-labelledby="settingsAccountTitle">
+        <div>
+            <h2 id="settingsAccountTitle">Account</h2>
+            <p>Your current sign-in profile.</p>
+        </div>
+        <div class="settings-account-identity">
+            <span class="settings-account-avatar" id="settingsProfileInitials" aria-hidden="true">A</span>
+            <span class="settings-account-copy">
+                <strong id="settingsProfileName">Loading profile…</strong>
+                <span id="settingsProfileEmail"> </span>
+            </span>
+        </div>
     </section>
 
 

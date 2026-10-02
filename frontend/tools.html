@@ -21,6 +21,8 @@ rel="stylesheet"
 href="style.css"
 >
 
+<link rel="stylesheet" href="app-theme.css">
+<script src="app-shell.js" defer></script>
 </head>
 
 
@@ -62,7 +64,7 @@ STUDY
 
 
 <a
-href="index.html"
+href="dashboard.html"
 class="nav"
 >
 🏠 Dashboard
@@ -124,59 +126,37 @@ Tools for your AI Study Assistant.
 </p>
 
 
-<div class="grid">
-
-
-<div class="card">
-
-<h3>
-📄 Document Search
-</h3>
-
-<p>
-Search your uploaded study materials.
-</p>
-
-</div>
-
-
-<div class="card">
-
-<h3>
-📝 Quick Revision
-</h3>
-
-<p>
-Revision feature can be added next.
-</p>
-
-</div>
-
-
-<div class="card">
-
-<h3>
-❓ Question Bank
-</h3>
-
-<p>
-Exam-oriented question generation can be added next.
-</p>
-
-</div>
-
-
-</div>
+<section class="tool-launcher-grid" aria-label="Available study tools">
+	<a class="tool-launcher" href="documents.html">
+		<span class="tool-launcher-icon" aria-hidden="true">▤</span>
+		<span class="tool-launcher-copy"><strong>Document library</strong><span>Upload PDFs, browse files, and manage your study material.</span></span>
+		<span class="tool-launcher-status">Available</span>
+		<span class="tool-launcher-arrow" aria-hidden="true">↗</span>
+	</a>
+	<a class="tool-launcher" href="ask-ai.html">
+		<span class="tool-launcher-icon" aria-hidden="true">✦</span>
+		<span class="tool-launcher-copy"><strong>Document Q&amp;A</strong><span>Ask questions grounded in a selected question bank.</span></span>
+		<span class="tool-launcher-status">Available</span>
+		<span class="tool-launcher-arrow" aria-hidden="true">↗</span>
+	</a>
+	<a class="tool-launcher" href="chatbot.html">
+		<span class="tool-launcher-icon" aria-hidden="true">◉</span>
+		<span class="tool-launcher-copy"><strong>Study chatbot</strong><span>Start a general study conversation with the assistant.</span></span>
+		<span class="tool-launcher-status">Available</span>
+		<span class="tool-launcher-arrow" aria-hidden="true">↗</span>
+	</a>
+	<a class="tool-launcher" href="history.html">
+		<span class="tool-launcher-icon" aria-hidden="true">◷</span>
+		<span class="tool-launcher-copy"><strong>Upload activity</strong><span>Review the documents in your study timeline.</span></span>
+		<span class="tool-launcher-status">Available</span>
+		<span class="tool-launcher-arrow" aria-hidden="true">↗</span>
+	</a>
+</section>
 
 </main>
 
 </div>
 
-
-
-<script
-src="app.js">
-</script>
 
 
 </body>
