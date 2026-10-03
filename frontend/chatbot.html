@@ -1289,7 +1289,7 @@ html[data-dark-mode="on"] .bot .bubble blockquote {
 
                 addMessage(
                     "bot",
-                    `❌ Unable to connect to the AI server at ${API_BASE}.`
+                    `❌ ${apiErrorMessage(error, "The chat request failed.")}`
                 );
 
             } finally {

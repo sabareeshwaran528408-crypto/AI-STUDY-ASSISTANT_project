@@ -200,7 +200,7 @@ async function uploadPDF() {
 
 
         const response =
-            await fetch(
+            await authFetch(
                 `${API_BASE}/api/documents/upload`,
                 {
                     method: "POST",
@@ -332,7 +332,10 @@ async function uploadPDF() {
 
 
         showMessage(
-            "❌ " + error.message,
+            "❌ " + apiErrorMessage(
+                error,
+                "The upload request failed."
+            ),
             "error"
         );
 
@@ -662,7 +665,7 @@ async function runBrowserOCR(file) {
 
 
         const saveResponse =
-            await fetch(
+            await authFetch(
                 `${API_BASE}/api/documents/text`,
                 {
                     method: "POST",
@@ -931,7 +934,7 @@ async function loadLatestDocument() {
     try {
 
         const response =
-            await fetch(
+            await authFetch(
                 `${API_BASE}/api/documents/latest`,
                 {
                     headers: {

@@ -41,7 +41,8 @@ if (!process.env.GROQ_API_KEY) {
 
 if (
     !process.env.SUPABASE_URL ||
-    !process.env.SUPABASE_SECRET_KEY
+    !process.env.SUPABASE_SECRET_KEY ||
+    !process.env.SUPABASE_ANON_KEY
 ) {
     console.warn(
         "WARNING: Supabase environment variables are not configured."
@@ -89,6 +90,21 @@ async function authenticateToken(req, res, next) {
 
     try {
 
+        if (
+            !process.env.SUPABASE_URL ||
+            !process.env.SUPABASE_ANON_KEY
+        ) {
+            console.error(
+                "Authentication configuration is incomplete."
+            );
+
+            return res.status(500).json({
+                success: false,
+                message:
+                    "Authentication service is not configured."
+            });
+        }
+
         const authHeader =
             req.headers.authorization;
 
@@ -118,12 +134,46 @@ async function authenticateToken(req, res, next) {
 
         const token = parts[1];
 
+        let authResult;
+
+        try {
+            authResult =
+                await supabase.auth.getUser(token);
+        } catch {
+            console.error(
+                "Supabase token verification request failed."
+            );
+
+            return res.status(503).json({
+                success: false,
+                message:
+                    "Authentication service is temporarily unavailable."
+            });
+        }
+
         const {
             data: { user },
             error
-        } = await supabase.auth.getUser(token);
+        } = authResult;
 
         if (error || !user) {
+
+            if (
+                error &&
+                error.status !== 400 &&
+                error.status !== 401 &&
+                error.status !== 403
+            ) {
+                console.error(
+                    "Supabase token verification returned a service error."
+                );
+
+                return res.status(503).json({
+                    success: false,
+                    message:
+                        "Authentication service is temporarily unavailable."
+                });
+            }
 
             return res.status(401).json({
                 success: false,
@@ -133,37 +183,46 @@ async function authenticateToken(req, res, next) {
         }
 
         req.user = user;
-        req.userSupabase = createClient(
-            process.env.SUPABASE_URL,
-            process.env.SUPABASE_ANON_KEY,
-            {
-                auth: {
-                    persistSession: false,
-                    autoRefreshToken: false,
-                    detectSessionInUrl: false
-                },
-                global: {
-                    headers: {
-                        Authorization:
-                            `Bearer ${token}`
+        try {
+            req.userSupabase = createClient(
+                process.env.SUPABASE_URL,
+                process.env.SUPABASE_ANON_KEY,
+                {
+                    auth: {
+                        persistSession: false,
+                        autoRefreshToken: false,
+                        detectSessionInUrl: false
+                    },
+                    global: {
+                        headers: {
+                            Authorization:
+                                `Bearer ${token}`
+                        }
                     }
                 }
-            }
-        );
+            );
+        } catch {
+            console.error(
+                "User-scoped Supabase client configuration failed."
+            );
+
+            return res.status(500).json({
+                success: false,
+                message:
+                    "Database access is not configured."
+            });
+        }
 
         next();
 
-    } catch (error) {
+    } catch {
 
-        console.error(
-            "Authentication error:",
-            error
-        );
+        console.error("Authentication middleware failed.");
 
-        return res.status(401).json({
+        return res.status(500).json({
             success: false,
             message:
-                "Invalid or expired login session."
+                "Authentication could not be completed."
         });
     }
 }
@@ -455,6 +514,11 @@ app.post(
                         .session
                         .access_token,
 
+                refreshToken:
+                    loginData
+                        .session
+                        .refresh_token,
+
                 user: {
                     id:
                         user.id,
@@ -585,6 +649,11 @@ app.post(
                         .session
                         .access_token,
 
+                refreshToken:
+                    data
+                        .session
+                        .refresh_token,
+
                 user: {
 
                     id:
@@ -613,6 +682,64 @@ app.post(
                 success: false,
                 message:
                     "Server error while logging in."
+            });
+        }
+    }
+);
+
+// =====================================================
+// REFRESH AUTHENTICATION SESSION
+// =====================================================
+
+app.post(
+    "/api/auth/refresh",
+    async function (req, res) {
+
+        const refreshToken =
+            typeof req.body?.refreshToken === "string"
+                ? req.body.refreshToken.trim()
+                : "";
+
+        if (!refreshToken) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "A refresh token is required."
+            });
+        }
+
+        try {
+            const {
+                data,
+                error
+            } = await supabase.auth.refreshSession({
+                refresh_token: refreshToken
+            });
+
+            if (error || !data.session) {
+                return res.status(401).json({
+                    success: false,
+                    message:
+                        "Login session expired. Please sign in again."
+                });
+            }
+
+            return res.json({
+                success: true,
+                token:
+                    data.session.access_token,
+                refreshToken:
+                    data.session.refresh_token
+            });
+        } catch {
+            console.error(
+                "Supabase session refresh request failed."
+            );
+
+            return res.status(503).json({
+                success: false,
+                message:
+                    "Session refresh is temporarily unavailable."
             });
         }
     }

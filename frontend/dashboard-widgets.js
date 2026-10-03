@@ -209,13 +209,19 @@
 
     async function loadRecentDocuments(container) {
         try {
-            const response = await fetch(`${DASHBOARD_API}/api/documents`, {
+            const response = await authFetch(`${DASHBOARD_API}/api/documents`, {
                 headers: {
                     Authorization: `Bearer ${getAuthToken()}`
                 }
             });
-            if (!response.ok) throw new Error("Could not load documents.");
             const data = await response.json();
+            if (!response.ok) {
+                throw apiErrorFromResponse(
+                    response,
+                    data,
+                    "Could not load documents."
+                );
+            }
             const documents = Array.isArray(data) ? data : Array.isArray(data.documents) ? data.documents : [];
             if (!documents.length) {
                 container.innerHTML = '<div class="recent-empty">No study documents yet. Upload a PDF to start your library.</div>';
@@ -249,8 +255,14 @@
                 row.append(icon, copy, actions);
                 container.append(row);
             }
-        } catch {
-            container.innerHTML = '<div class="recent-empty">Recent documents are unavailable right now.</div>';
+        } catch (error) {
+            const message = document.createElement("div");
+            message.className = "recent-empty";
+            message.textContent = apiErrorMessage(
+                error,
+                "Recent documents are unavailable right now."
+            );
+            container.replaceChildren(message);
         }
     }
 

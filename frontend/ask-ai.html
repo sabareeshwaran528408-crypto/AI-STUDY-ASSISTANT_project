@@ -579,7 +579,7 @@ html[data-dark-mode="on"] .loading {
 
 
             const response =
-                await fetch(
+                await authFetch(
                     `${API_BASE}/api/documents`,
                     {
                         headers: {
@@ -591,9 +591,15 @@ html[data-dark-mode="on"] .loading {
 
 
             if (!response.ok) {
+                const errorData =
+                    await response.json().catch(
+                        () => ({})
+                    );
 
-                throw new Error(
-                    `HTTP ${response.status}`
+                throw apiErrorFromResponse(
+                    response,
+                    errorData,
+                    "Could not load your documents."
                 );
 
             }
@@ -718,7 +724,7 @@ html[data-dark-mode="on"] .loading {
                 try {
 
                     const latestResponse =
-                        await fetch(
+                        await authFetch(
                             `${API_BASE}/api/documents/latest`,
                             {
                                 headers: {
@@ -788,7 +794,10 @@ html[data-dark-mode="on"] .loading {
 
 
             showStatus(
-                "Cannot connect to backend. Make sure server.js is running on port 5000.",
+                apiErrorMessage(
+                    error,
+                    "Unable to load documents."
+                ),
                 "error"
             );
 
@@ -889,7 +898,7 @@ html[data-dark-mode="on"] .loading {
             // ==================================================
 
             const response =
-                await fetch(
+                await authFetch(
                     `${API_BASE}/api/ai/ask`,
                     {
 
@@ -935,11 +944,10 @@ html[data-dark-mode="on"] .loading {
             // ==================================================
 
             if (!response.ok) {
-
-                throw new Error(
-                    data.message ||
-                    data.error ||
-                    `HTTP ${response.status}`
+                throw apiErrorFromResponse(
+                    response,
+                    data,
+                    "The AI request failed."
                 );
 
             }
@@ -1026,14 +1034,19 @@ html[data-dark-mode="on"] .loading {
                 error
             );
 
+            const errorMessage =
+                apiErrorMessage(
+                    error,
+                    "The AI request failed."
+                );
 
             answerBox.textContent =
                 "❌ Failed to generate answer.\n\n" +
-                error.message;
+                errorMessage;
 
 
             showStatus(
-                "AI request failed. Check the backend terminal.",
+                errorMessage,
                 "error"
             );
 

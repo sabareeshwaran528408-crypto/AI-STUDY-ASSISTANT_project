@@ -794,7 +794,7 @@ uploadBtn.addEventListener(
 
 
             const response =
-                await fetch(
+                await authFetch(
                     `${API_BASE}/api/documents/upload`,
                     {
                         method: "POST",
@@ -940,8 +940,14 @@ uploadBtn.addEventListener(
                 ❌ Upload failed.<br>
                 ${
                     escapeHTML(
-                        data.message ||
-                        "Unknown server error"
+                        apiErrorMessage(
+                            apiErrorFromResponse(
+                                response,
+                                data,
+                                "Upload failed."
+                            ),
+                            "Upload failed."
+                        )
                     )
                 }
                 `;
@@ -964,7 +970,10 @@ uploadBtn.addEventListener(
                 ❌ Upload failed.<br>
                 ${
                     escapeHTML(
-                        error.message
+                        apiErrorMessage(
+                            error,
+                            "Upload failed."
+                        )
                     )
                 }
                 `;
@@ -1197,7 +1206,7 @@ ${pageText}`;
          */
 
         const saveResponse =
-            await fetch(
+            await authFetch(
                 `${API_BASE}/api/documents/text`,
                 {
                     method: "POST",
@@ -1359,7 +1368,7 @@ async function loadDocuments() {
 
 
         const response =
-            await fetch(
+            await authFetch(
                 `${API_BASE}/api/documents`,
                 {
                     headers: {
@@ -1379,8 +1388,9 @@ async function loadDocuments() {
             !data.success
         ) {
 
-            throw new Error(
-                data.message ||
+            throw apiErrorFromResponse(
+                response,
+                data,
                 "Could not load documents."
             );
         }
@@ -1429,7 +1439,10 @@ async function loadDocuments() {
             <div class="empty">
                 ❌ Failed to load documents.<br>
                 ${escapeHTML(
-                    error.message
+                    apiErrorMessage(
+                        error,
+                        "Could not load documents."
+                    )
                 )}
             </div>
             `;
@@ -1571,7 +1584,7 @@ window.deleteDocument =
         try {
 
             const response =
-                await fetch(
+                await authFetch(
                     `${API_BASE}/api/documents/${documentId}`,
                     {
                         method: "DELETE",
@@ -1638,7 +1651,7 @@ async function loadLatestDocument() {
     try {
 
         const response =
-            await fetch(
+            await authFetch(
                 `${API_BASE}/api/documents/latest`,
                 {
                     headers: {

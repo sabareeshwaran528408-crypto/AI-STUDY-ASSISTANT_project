@@ -882,8 +882,10 @@
 
                 if (!response.ok) {
 
-                    throw new Error(
-                        "Backend returned an error"
+                    throw apiErrorFromResponse(
+                        response,
+                        {},
+                        "The backend health check failed."
                     );
 
                 }
@@ -934,13 +936,17 @@
 
 
                 statusText.textContent =
-                    "Backend Offline";
+                    error?.name === "TypeError"
+                        ? "Connection Error"
+                        : "Backend Error";
 
                 statusDot.className =
                     "status-dot offline";
 
                 aiStatus.textContent =
-                    "Offline";
+                    error?.name === "TypeError"
+                        ? "Unavailable"
+                        : "Backend Error";
 
             }
 
@@ -962,7 +968,7 @@
             try {
 
                 const response =
-                    await fetch(
+                    await authFetch(
                         `${API_BASE}/api/documents`,
                         {
                             headers: {
@@ -973,17 +979,16 @@
                     );
 
 
-                if (!response.ok) {
-
-                    throw new Error(
-                        "Failed to load documents"
-                    );
-
-                }
-
-
                 const data =
                     await response.json();
+
+                if (!response.ok) {
+                    throw apiErrorFromResponse(
+                        response,
+                        data,
+                        "Failed to load documents."
+                    );
+                }
 
 
                 console.log(
@@ -1030,7 +1035,10 @@
 
 
                 countElement.textContent =
-                    "0";
+                    apiErrorMessage(
+                        error,
+                        "Documents unavailable"
+                    );
 
             }
 
@@ -1052,7 +1060,7 @@
             try {
 
                 const response =
-                    await fetch(
+                    await authFetch(
                         `${API_BASE}/api/documents/latest`,
                         {
                             headers: {
@@ -1063,17 +1071,16 @@
                     );
 
 
-                if (!response.ok) {
-
-                    throw new Error(
-                        "No latest document"
-                    );
-
-                }
-
-
                 const data =
                     await response.json();
+
+                if (!response.ok) {
+                    throw apiErrorFromResponse(
+                        response,
+                        data,
+                        "Could not load the latest document."
+                    );
+                }
 
 
                 console.log(
@@ -1135,7 +1142,10 @@
 
 
                 latestElement.textContent =
-                    "None";
+                    apiErrorMessage(
+                        error,
+                        "Latest document unavailable"
+                    );
 
             }
 

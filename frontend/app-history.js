@@ -12,13 +12,19 @@
 
     async function loadActivity() {
         try {
-            const response = await fetch(`${API_BASE}/api/documents`, {
+            const response = await authFetch(`${API_BASE}/api/documents`, {
                 headers: {
                     Authorization: `Bearer ${getAuthToken()}`
                 }
             });
             const data = await response.json();
-            if (!response.ok) throw new Error(data.message || "History is unavailable.");
+            if (!response.ok) {
+                throw apiErrorFromResponse(
+                    response,
+                    data,
+                    "History is unavailable."
+                );
+            }
             const documents = Array.isArray(data) ? data : Array.isArray(data.documents) ? data.documents : [];
             activities = documents.map(documentData => ({
                 kind: "document",
@@ -29,9 +35,14 @@
             })).sort((left, right) => (right.date?.getTime() || 0) - (left.date?.getTime() || 0));
             renderActivity();
             if (status) status.textContent = activities.length ? `${activities.length} document uploads` : "No saved activity yet";
-        } catch {
+        } catch (error) {
             timeline.innerHTML = '<div class="activity-empty">Activity could not be loaded. Your uploaded documents remain available in Documents.</div>';
-            if (status) status.textContent = "History unavailable";
+            if (status) {
+                status.textContent = apiErrorMessage(
+                    error,
+                    "History unavailable"
+                );
+            }
         }
     }
 

@@ -49,7 +49,7 @@ uploadBtn.addEventListener("click", async () => {
         const formData = new FormData();
         formData.append("document", selectedFile);
 
-        const response = await fetch(
+        const response = await authFetch(
             `${API_BASE}/api/documents/upload`,
             {
                 method: "POST",
@@ -121,7 +121,7 @@ uploadBtn.addEventListener("click", async () => {
         console.error(error);
 
         statusBox.innerHTML =
-            `❌ Connection error.<br>${error.message}`;
+            `❌ ${apiErrorMessage(error, "The upload request failed.")}`;
 
     }
 
@@ -241,7 +241,7 @@ async function runBrowserOCR(file) {
          * Save OCR text to backend
          */
         const saveResponse =
-            await fetch(
+            await authFetch(
                 `${API_BASE}/api/documents/text`,
                 {
                     method: "POST",
@@ -314,7 +314,7 @@ async function loadLatestDocument() {
     try {
 
         const response =
-            await fetch(
+            await authFetch(
                 `${API_BASE}/api/documents/latest`,
                 {
                     headers: {
