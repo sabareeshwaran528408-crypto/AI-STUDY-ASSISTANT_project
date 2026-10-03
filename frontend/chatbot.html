@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <script src="api-config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js"></script>
     <meta charset="UTF-8">
@@ -679,16 +680,12 @@ html[data-dark-mode="on"] .bot .bubble blockquote {
          * CONFIGURATION
          * =====================================================
          *
-         * LOCAL TESTING:
-         * http://localhost:5000
-         *
-         * FRONTEND:
-         * http://localhost:3000
+         * The API base is selected by api-config.js.
          *
          * Groq API key is NEVER placed here.
          */
 
-        const API_BASE = "https://ai-study-assistant-production-ce2c.up.railway.app";
+        const API_BASE = window.AI_STUDY_API_BASE;
 
 
         /*
@@ -1292,7 +1289,7 @@ html[data-dark-mode="on"] .bot .bubble blockquote {
 
                 addMessage(
                     "bot",
-                    "❌ Unable to connect to the AI server. Please make sure your backend is running on http://localhost:5000."
+                    `❌ Unable to connect to the AI server at ${API_BASE}.`
                 );
 
             } finally {

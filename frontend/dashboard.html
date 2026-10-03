@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <script src="api-config.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="settings.js"></script>
@@ -843,16 +844,10 @@
          * LOCAL DEVELOPMENT
          * ==========================================
          *
-         * Frontend:
-         * http://localhost:3000
-         *
-         * Backend:
-         * http://localhost:5000
-         *
-         * Therefore API_BASE is port 5000.
+        * The API base is selected by api-config.js.
          */
 
-        const API_BASE = "https://ai-study-assistant-production-ce2c.up.railway.app";
+        const API_BASE = window.AI_STUDY_API_BASE;
 
 
         // ==========================================
@@ -968,7 +963,13 @@
 
                 const response =
                     await fetch(
-                        `${API_BASE}/api/documents`
+                        `${API_BASE}/api/documents`,
+                        {
+                            headers: {
+                                Authorization:
+                                    `Bearer ${getAuthToken()}`
+                            }
+                        }
                     );
 
 
@@ -1052,7 +1053,13 @@
 
                 const response =
                     await fetch(
-                        `${API_BASE}/api/documents/latest`
+                        `${API_BASE}/api/documents/latest`,
+                        {
+                            headers: {
+                                Authorization:
+                                    `Bearer ${getAuthToken()}`
+                            }
+                        }
                     );
 
 

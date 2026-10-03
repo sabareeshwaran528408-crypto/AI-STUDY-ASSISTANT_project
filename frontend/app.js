@@ -2,7 +2,7 @@
    AI STUDY ASSISTANT
    Browser PDF OCR + Railway Backend
 ===================================================== */
-const API_BASE = "http://localhost:5000";
+const API_BASE = window.AI_STUDY_API_BASE;
 
 
 let selectedPDF = null;
@@ -204,6 +204,10 @@ async function uploadPDF() {
                 `${API_BASE}/api/documents/upload`,
                 {
                     method: "POST",
+                    headers: {
+                        Authorization:
+                            `Bearer ${getAuthToken()}`
+                    },
                     body: formData
                 }
             );
@@ -665,7 +669,9 @@ async function runBrowserOCR(file) {
 
                     headers: {
                         "Content-Type":
-                            "application/json"
+                            "application/json",
+                        Authorization:
+                            `Bearer ${getAuthToken()}`
                     },
 
                     body:
@@ -926,7 +932,13 @@ async function loadLatestDocument() {
 
         const response =
             await fetch(
-                `${API_BASE}/api/documents/latest`
+                `${API_BASE}/api/documents/latest`,
+                {
+                    headers: {
+                        Authorization:
+                            `Bearer ${getAuthToken()}`
+                    }
+                }
             );
 
 

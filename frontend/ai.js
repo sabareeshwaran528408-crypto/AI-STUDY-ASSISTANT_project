@@ -1,5 +1,5 @@
 const API_BASE =
-    "http://localhost:5000";
+    window.AI_STUDY_API_BASE;
 
 const fileInput = document.getElementById("fileInput");
 const chooseBtn = document.getElementById("chooseBtn");
@@ -53,6 +53,10 @@ uploadBtn.addEventListener("click", async () => {
             `${API_BASE}/api/documents/upload`,
             {
                 method: "POST",
+                headers: {
+                    Authorization:
+                        `Bearer ${getAuthToken()}`
+                },
                 body: formData
             }
         );
@@ -244,7 +248,9 @@ async function runBrowserOCR(file) {
 
                     headers: {
                         "Content-Type":
-                            "application/json"
+                            "application/json",
+                        Authorization:
+                            `Bearer ${getAuthToken()}`
                     },
 
                     body: JSON.stringify({
@@ -309,7 +315,13 @@ async function loadLatestDocument() {
 
         const response =
             await fetch(
-                `${API_BASE}/api/documents/latest`
+                `${API_BASE}/api/documents/latest`,
+                {
+                    headers: {
+                        Authorization:
+                            `Bearer ${getAuthToken()}`
+                    }
+                }
             );
 
         const data =

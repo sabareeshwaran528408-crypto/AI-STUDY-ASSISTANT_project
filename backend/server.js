@@ -1,7 +1,7 @@
 // =====================================================
 // AI STUDY ASSISTANT
 // BACKEND SERVER
-// Node.js + Express + MySQL + Supabase Auth
+// Node.js + Express + Supabase Auth + Database
 // PDF Processing + Groq AI + n8n
 // =====================================================
 
@@ -14,8 +14,8 @@ const dotenv = require("dotenv");
 const crypto = require("crypto");
 const { PDFParse } = require("pdf-parse");
 const Groq = require("groq-sdk");
+const { createClient } = require("@supabase/supabase-js");
 
-const db = require("./db");
 const supabase = require("./supabase");
 
 // =====================================================
@@ -133,6 +133,23 @@ async function authenticateToken(req, res, next) {
         }
 
         req.user = user;
+        req.userSupabase = createClient(
+            process.env.SUPABASE_URL,
+            process.env.SUPABASE_ANON_KEY,
+            {
+                auth: {
+                    persistSession: false,
+                    autoRefreshToken: false,
+                    detectSessionInUrl: false
+                },
+                global: {
+                    headers: {
+                        Authorization:
+                            `Bearer ${token}`
+                    }
+                }
+            }
+        );
 
         next();
 
@@ -509,6 +526,13 @@ app.post(
                     password:
                         password
                 });
+
+            if (error) {
+                console.warn("Supabase login error:", {
+                    code: error.code || "unknown",
+                    message: error.message || "No message"
+                });
+            }
 
             if (
                 error ||
@@ -1151,7 +1175,7 @@ app.get(
                 "online",
 
             database:
-                "MySQL documents + Supabase Auth",
+                "Supabase documents + Supabase Auth",
 
             groqAI:
                 Boolean(
@@ -1172,11 +1196,17 @@ app.get(
 
         try {
 
-            await db
-                .promise()
-                .query(
-                    "SELECT 1"
-                );
+            const {
+                error: databaseError
+            } =
+                await supabase
+                    .from("documents")
+                    .select("id")
+                    .limit(1);
+
+            if (databaseError) {
+                throw databaseError;
+            }
 
             res.json({
 
@@ -1187,7 +1217,7 @@ app.get(
                     "online",
 
                 database:
-                    "MySQL document storage connected",
+                    "Supabase document storage connected",
 
                 groqAI:
                     Boolean(
@@ -1215,7 +1245,7 @@ app.get(
                     "online",
 
                 database:
-                    "MySQL document storage error",
+                    "Supabase document storage error",
 
                 groqAI:
                     Boolean(
@@ -1253,11 +1283,55 @@ function cleanText(text) {
         .trim();
 }
 
+async function fetchAllSupabaseRows(queryFactory) {
+
+    const pageSize =
+        1000;
+
+    const rows =
+        [];
+
+    for (
+        let offset = 0;
+        ;
+        offset += pageSize
+    ) {
+
+        const {
+            data,
+            error
+        } =
+            await queryFactory()
+                .range(
+                    offset,
+                    offset + pageSize - 1
+                );
+
+        if (error) {
+            throw error;
+        }
+
+        const page =
+            data || [];
+
+        rows.push(
+            ...page
+        );
+
+        if (
+            page.length < pageSize
+        ) {
+            return rows;
+        }
+    }
+}
+
 // =====================================================
 // CREATE CHUNKS
 // =====================================================
 
 async function createChunks(
+    userSupabase,
     documentId,
     text
 ) {
@@ -1294,11 +1368,14 @@ async function createChunks(
 
         if (chunk.length > 0) {
 
-            rows.push([
-                documentId,
-                chunkIndex,
-                chunk
-            ]);
+            rows.push({
+                document_id:
+                    documentId,
+                chunk_index:
+                    chunkIndex,
+                chunk_text:
+                    chunk
+            });
 
             chunkIndex++;
         }
@@ -1327,20 +1404,16 @@ async function createChunks(
                 i + batchSize
             );
 
-        await db
-            .promise()
-            .query(
-                `
-                INSERT INTO document_chunks
-                (
-                    document_id,
-                    chunk_index,
-                    chunk_text
-                )
-                VALUES ?
-                `,
-                [batch]
-            );
+        const {
+            error
+        } =
+            await userSupabase
+                .from("document_chunks")
+                .insert(batch);
+
+        if (error) {
+            throw error;
+        }
     }
 
     return rows.length;
@@ -1352,6 +1425,7 @@ async function createChunks(
 
 app.post(
     "/api/documents/upload",
+    authenticateToken,
     upload.single("document"),
     async function (req, res) {
 
@@ -1472,36 +1546,34 @@ app.post(
             // ---------------------------------
 
             console.log(
-                "Saving document to MySQL..."
+                "Saving document to Supabase..."
             );
 
-            const [
-                documentResult
-            ] =
-                await db
-                    .promise()
-                    .query(
-                        `
-                        INSERT INTO documents
-                        (
-                            user_id,
-                            file_name,
-                            file_path,
-                            extracted_text
-                        )
-                        VALUES
-                        (?, ?, ?, ?)
-                        `,
-                        [
-                            null,
+            const {
+                data: document,
+                error: documentError
+            } =
+                await req.userSupabase
+                    .from("documents")
+                    .insert({
+                        user_id:
+                            req.user.id,
+                        file_name:
                             originalFileName,
+                        file_path:
                             filePath,
+                        extracted_text:
                             extractedText
-                        ]
-                    );
+                    })
+                    .select("id")
+                    .single();
+
+            if (documentError) {
+                throw documentError;
+            }
 
             const documentId =
-                documentResult.insertId;
+                document.id;
 
             console.log(
                 "Document created:",
@@ -1514,6 +1586,7 @@ app.post(
 
             const chunks =
                 await createChunks(
+                    req.userSupabase,
                     documentId,
                     extractedText
                 );
@@ -1599,6 +1672,7 @@ app.post(
 
 app.post(
     "/api/documents/text",
+    authenticateToken,
     async function (req, res) {
 
         try {
@@ -1644,36 +1718,35 @@ app.post(
                 cleanedText.length
             );
 
-            const [
-                documentResult
-            ] =
-                await db
-                    .promise()
-                    .query(
-                        `
-                        INSERT INTO documents
-                        (
-                            user_id,
-                            file_name,
-                            file_path,
-                            extracted_text
-                        )
-                        VALUES
-                        (?, ?, ?, ?)
-                        `,
-                        [
-                            null,
+            const {
+                data: document,
+                error: documentError
+            } =
+                await req.userSupabase
+                    .from("documents")
+                    .insert({
+                        user_id:
+                            req.user.id,
+                        file_name:
                             fileName,
+                        file_path:
                             "browser-ocr",
+                        extracted_text:
                             cleanedText
-                        ]
-                    );
+                    })
+                    .select("id")
+                    .single();
+
+            if (documentError) {
+                throw documentError;
+            }
 
             const documentId =
-                documentResult.insertId;
+                document.id;
 
             const chunks =
                 await createChunks(
+                    req.userSupabase,
                     documentId,
                     cleanedText
                 );
@@ -1729,30 +1802,51 @@ app.post(
 
 app.get(
     "/api/documents",
+    authenticateToken,
     async function (req, res) {
 
         try {
 
-            const [
-                rows
-            ] =
-                await db
-                    .promise()
-                    .query(
-                        `
-                        SELECT
-                            id,
-                            user_id,
-                            file_name,
-                            file_path,
-                            created_at,
-                            CHAR_LENGTH(
-                                extracted_text
-                            ) AS text_length
-                        FROM documents
-                        ORDER BY id DESC
-                        `
-                    );
+            const rows =
+                await fetchAllSupabaseRows(
+                    () =>
+                        req.userSupabase
+                            .from("documents")
+                            .select(
+                                "id, user_id, file_name, file_path, created_at, extracted_text"
+                            )
+                            .order(
+                                "id",
+                                {
+                                    ascending:
+                                        false
+                                }
+                            )
+                            .eq(
+                                "user_id",
+                                req.user.id
+                            )
+                );
+
+            const documents =
+                rows.map(document => ({
+                    id:
+                        document.id,
+                    user_id:
+                        document.user_id,
+                    file_name:
+                        document.file_name,
+                    file_path:
+                        document.file_path,
+                    created_at:
+                        document.created_at,
+                    text_length:
+                        document.extracted_text === null
+                            ? null
+                            : Array.from(
+                                document.extracted_text || ""
+                            ).length
+                }));
 
             return res.json({
 
@@ -1760,7 +1854,7 @@ app.get(
                     true,
 
                 documents:
-                    rows
+                    documents
 
             });
 
@@ -1793,32 +1887,40 @@ app.get(
 
 app.get(
     "/api/documents/latest",
+    authenticateToken,
     async function (req, res) {
 
         try {
 
-            const [
-                rows
-            ] =
-                await db
-                    .promise()
-                    .query(
-                        `
-                        SELECT
-                            id,
-                            user_id,
-                            file_name,
-                            file_path,
-                            extracted_text,
-                            created_at
-                        FROM documents
-                        ORDER BY id DESC
-                        LIMIT 1
-                        `
-                    );
+            const {
+                data: document,
+                error
+            } =
+                await req.userSupabase
+                    .from("documents")
+                    .select(
+                        "id, user_id, file_name, file_path, extracted_text, created_at"
+                    )
+                    .order(
+                        "id",
+                        {
+                            ascending:
+                                false
+                        }
+                    )
+                    .eq(
+                        "user_id",
+                        req.user.id
+                    )
+                    .limit(1)
+                    .maybeSingle();
+
+            if (error) {
+                throw error;
+            }
 
             if (
-                rows.length === 0
+                !document
             ) {
 
                 return res.json({
@@ -1833,7 +1935,7 @@ app.get(
                     true,
 
                 document:
-                    rows[0]
+                    document
 
             });
 
@@ -1867,6 +1969,7 @@ app.get(
 
 app.get(
     "/api/documents/search",
+    authenticateToken,
     async function (req, res) {
 
         try {
@@ -1936,26 +2039,55 @@ app.get(
                 });
             }
 
-            const [
-                chunks
-            ] =
-                await db
-                    .promise()
-                    .query(
-                        `
-                        SELECT
-                            id,
-                            document_id,
-                            chunk_index,
-                            chunk_text
-                        FROM document_chunks
-                        WHERE document_id = ?
-                        ORDER BY chunk_index ASC
-                        `,
-                        [
-                            documentId
-                        ]
-                    );
+            const {
+                data: ownedDocument,
+                error: ownershipError
+            } =
+                await req.userSupabase
+                    .from("documents")
+                    .select("id")
+                    .eq(
+                        "id",
+                        documentId
+                    )
+                    .eq(
+                        "user_id",
+                        req.user.id
+                    )
+                    .maybeSingle();
+
+            if (ownershipError) {
+                throw ownershipError;
+            }
+
+            if (!ownedDocument) {
+                return res.json({
+                    success: true,
+                    query,
+                    results: []
+                });
+            }
+
+            const chunks =
+                await fetchAllSupabaseRows(
+                    () =>
+                        req.userSupabase
+                            .from("document_chunks")
+                            .select(
+                                "id, document_id, chunk_index, chunk_text"
+                            )
+                            .eq(
+                                "document_id",
+                                documentId
+                            )
+                            .order(
+                                "chunk_index",
+                                {
+                                    ascending:
+                                        true
+                                }
+                            )
+                );
 
             const scored =
                 chunks.map(
@@ -2070,6 +2202,7 @@ app.get(
 
 app.post(
     "/api/ai/ask",
+    authenticateToken,
     async function (req, res) {
 
         try {
@@ -2117,27 +2250,32 @@ app.post(
                 });
             }
 
-            const [
-                documentRows
-            ] =
-                await db
-                    .promise()
-                    .query(
-                        `
-                        SELECT
-                            id,
-                            file_name
-                        FROM documents
-                        WHERE id = ?
-                        LIMIT 1
-                        `,
-                        [
-                            documentId
-                        ]
-                    );
+            const {
+                data: document,
+                error: documentError
+            } =
+                await req.userSupabase
+                    .from("documents")
+                    .select(
+                        "id, file_name"
+                    )
+                    .eq(
+                        "id",
+                        documentId
+                    )
+                    .eq(
+                        "user_id",
+                        req.user.id
+                    )
+                    .limit(1)
+                    .maybeSingle();
+
+            if (documentError) {
+                throw documentError;
+            }
 
             if (
-                documentRows.length === 0
+                !document
             ) {
 
                 return res.status(404).json({
@@ -2160,26 +2298,26 @@ app.post(
                             word.length > 2
                     );
 
-            const [
-                chunks
-            ] =
-                await db
-                    .promise()
-                    .query(
-                        `
-                        SELECT
-                            id,
-                            document_id,
-                            chunk_index,
-                            chunk_text
-                        FROM document_chunks
-                        WHERE document_id = ?
-                        ORDER BY chunk_index ASC
-                        `,
-                        [
-                            documentId
-                        ]
-                    );
+            const chunks =
+                await fetchAllSupabaseRows(
+                    () =>
+                        req.userSupabase
+                            .from("document_chunks")
+                            .select(
+                                "id, document_id, chunk_index, chunk_text"
+                            )
+                            .eq(
+                                "document_id",
+                                documentId
+                            )
+                            .order(
+                                "chunk_index",
+                                {
+                                    ascending:
+                                        true
+                                }
+                            )
+                );
 
             if (
                 chunks.length === 0
@@ -2349,8 +2487,7 @@ app.post(
                     documentId,
 
                 documentName:
-                    documentRows[0]
-                        .file_name,
+                    document.file_name,
 
                 sources:
                     relevantChunks.map(
@@ -2586,6 +2723,7 @@ app.post(
 
 app.get(
     "/api/documents/:id",
+    authenticateToken,
     async function (req, res) {
 
         try {
@@ -2608,31 +2746,32 @@ app.get(
                 });
             }
 
-            const [
-                rows
-            ] =
-                await db
-                    .promise()
-                    .query(
-                        `
-                        SELECT
-                            id,
-                            user_id,
-                            file_name,
-                            file_path,
-                            extracted_text,
-                            created_at
-                        FROM documents
-                        WHERE id = ?
-                        LIMIT 1
-                        `,
-                        [
-                            documentId
-                        ]
-                    );
+            const {
+                data: document,
+                error
+            } =
+                await req.userSupabase
+                    .from("documents")
+                    .select(
+                        "id, user_id, file_name, file_path, extracted_text, created_at"
+                    )
+                    .eq(
+                        "id",
+                        documentId
+                    )
+                    .eq(
+                        "user_id",
+                        req.user.id
+                    )
+                    .limit(1)
+                    .maybeSingle();
+
+            if (error) {
+                throw error;
+            }
 
             if (
-                rows.length === 0
+                !document
             ) {
 
                 return res.status(404).json({
@@ -2648,7 +2787,7 @@ app.get(
                     true,
 
                 document:
-                    rows[0]
+                    document
 
             });
 
@@ -2681,6 +2820,7 @@ app.get(
 
 app.delete(
     "/api/documents/:id",
+    authenticateToken,
     async function (req, res) {
 
         try {
@@ -2703,23 +2843,74 @@ app.delete(
                 });
             }
 
-            const [
-                result
-            ] =
-                await db
-                    .promise()
-                    .query(
-                        `
-                        DELETE FROM documents
-                        WHERE id = ?
-                        `,
-                        [
-                            documentId
-                        ]
+            const {
+                data: ownedDocument,
+                error: ownershipError
+            } =
+                await req.userSupabase
+                    .from("documents")
+                    .select("id")
+                    .eq(
+                        "id",
+                        documentId
+                    )
+                    .eq(
+                        "user_id",
+                        req.user.id
+                    )
+                    .maybeSingle();
+
+            if (ownershipError) {
+                throw ownershipError;
+            }
+
+            if (!ownedDocument) {
+                return res.status(404).json({
+                    success: false,
+                    message:
+                        "Document not found."
+                });
+            }
+
+            const {
+                error: chunksError
+            } =
+                await req.userSupabase
+                    .from("document_chunks")
+                    .delete()
+                    .eq(
+                        "document_id",
+                        documentId
                     );
 
+            if (chunksError) {
+                throw chunksError;
+            }
+
+            const {
+                data: deletedDocuments,
+                error
+            } =
+                await req.userSupabase
+                    .from("documents")
+                    .delete()
+                    .eq(
+                        "id",
+                        documentId
+                    )
+                    .eq(
+                        "user_id",
+                        req.user.id
+                    )
+                    .select("id");
+
+            if (error) {
+                throw error;
+            }
+
             if (
-                result.affectedRows === 0
+                !deletedDocuments ||
+                deletedDocuments.length === 0
             ) {
 
                 return res.status(404).json({
@@ -2874,7 +3065,7 @@ app.listen(
         );
 
         console.log(
-            "MySQL document storage: configured"
+            "Supabase document storage: configured"
         );
 
         console.log(

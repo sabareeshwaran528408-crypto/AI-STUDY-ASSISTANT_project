@@ -1,6 +1,6 @@
 (() => {
     const DASHBOARD_ORDER_KEY = "aiStudyDashboardOrder";
-    const DASHBOARD_API = "https://ai-study-assistant-production-ce2c.up.railway.app";
+    const DASHBOARD_API = window.AI_STUDY_API_BASE;
 
     document.addEventListener("DOMContentLoaded", () => {
         if (document.body.dataset.dashboardWidgetsReady === "true") return;
@@ -209,7 +209,11 @@
 
     async function loadRecentDocuments(container) {
         try {
-            const response = await fetch(`${DASHBOARD_API}/api/documents`);
+            const response = await fetch(`${DASHBOARD_API}/api/documents`, {
+                headers: {
+                    Authorization: `Bearer ${getAuthToken()}`
+                }
+            });
             if (!response.ok) throw new Error("Could not load documents.");
             const data = await response.json();
             const documents = Array.isArray(data) ? data : Array.isArray(data.documents) ? data.documents : [];

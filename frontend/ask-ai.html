@@ -2,6 +2,7 @@
 <html lang="en">
 
 <head>
+    <script src="api-config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js"></script>
     <meta charset="UTF-8">
@@ -498,7 +499,7 @@ html[data-dark-mode="on"] .loading {
     // BACKEND
     // ==================================================
 
-    const API_BASE = "https://ai-study-assistant-production-ce2c.up.railway.app";
+    const API_BASE = window.AI_STUDY_API_BASE;
     // ==================================================
     // HTML ELEMENTS
     // ================================================== 
@@ -579,7 +580,13 @@ html[data-dark-mode="on"] .loading {
 
             const response =
                 await fetch(
-                    `${API_BASE}/api/documents`
+                    `${API_BASE}/api/documents`,
+                    {
+                        headers: {
+                            Authorization:
+                                `Bearer ${getAuthToken()}`
+                        }
+                    }
                 );
 
 
@@ -712,7 +719,13 @@ html[data-dark-mode="on"] .loading {
 
                     const latestResponse =
                         await fetch(
-                            `${API_BASE}/api/documents/latest`
+                            `${API_BASE}/api/documents/latest`,
+                            {
+                                headers: {
+                                    Authorization:
+                                        `Bearer ${getAuthToken()}`
+                                }
+                            }
                         );
 
 
@@ -886,7 +899,9 @@ html[data-dark-mode="on"] .loading {
                         headers: {
 
                             "Content-Type":
-                                "application/json"
+                                "application/json",
+                            Authorization:
+                                `Bearer ${getAuthToken()}`
 
                         },
 

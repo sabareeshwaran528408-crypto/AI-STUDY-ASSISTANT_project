@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <script src="api-config.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="settings.js"></script>
@@ -578,16 +579,11 @@ pdfjsLib.GlobalWorkerOptions.workerSrc =
  * http://localhost:3000
  */
 
-const API_BASE = "https://ai-study-assistant-production-ce2c.up.railway.app";
+const API_BASE = window.AI_STUDY_API_BASE;
 
 
 /*
- * FOR VERCEL DEPLOYMENT LATER:
- *
- * Change only the above line to:
- *
- * const API_BASE =
- *     "https://ai-study-assistant-production-ce2c.up.railway.app";
+ * Production API routing is selected by api-config.js.
  */
 
 
@@ -802,6 +798,10 @@ uploadBtn.addEventListener(
                     `${API_BASE}/api/documents/upload`,
                     {
                         method: "POST",
+                        headers: {
+                            Authorization:
+                                `Bearer ${getAuthToken()}`
+                        },
                         body: formData
                     }
                 );
@@ -1204,7 +1204,9 @@ ${pageText}`;
 
                     headers: {
                         "Content-Type":
-                            "application/json"
+                            "application/json",
+                        Authorization:
+                            `Bearer ${getAuthToken()}`
                     },
 
                     body:
@@ -1358,7 +1360,13 @@ async function loadDocuments() {
 
         const response =
             await fetch(
-                `${API_BASE}/api/documents`
+                `${API_BASE}/api/documents`,
+                {
+                    headers: {
+                        Authorization:
+                            `Bearer ${getAuthToken()}`
+                    }
+                }
             );
 
 
@@ -1566,7 +1574,11 @@ window.deleteDocument =
                 await fetch(
                     `${API_BASE}/api/documents/${documentId}`,
                     {
-                        method: "DELETE"
+                        method: "DELETE",
+                        headers: {
+                            Authorization:
+                                `Bearer ${getAuthToken()}`
+                        }
                     }
                 );
 
@@ -1627,7 +1639,13 @@ async function loadLatestDocument() {
 
         const response =
             await fetch(
-                `${API_BASE}/api/documents/latest`
+                `${API_BASE}/api/documents/latest`,
+                {
+                    headers: {
+                        Authorization:
+                            `Bearer ${getAuthToken()}`
+                    }
+                }
             );
 
 

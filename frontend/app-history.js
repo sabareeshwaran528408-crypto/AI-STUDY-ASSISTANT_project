@@ -1,5 +1,5 @@
 (() => {
-    const API_BASE = "https://ai-study-assistant-production-ce2c.up.railway.app";
+    const API_BASE = window.AI_STUDY_API_BASE;
     const timeline = document.querySelector("#activityTimeline");
     const search = document.querySelector("#historySearch");
     const status = document.querySelector("#activityStatus");
@@ -12,7 +12,11 @@
 
     async function loadActivity() {
         try {
-            const response = await fetch(`${API_BASE}/api/documents`);
+            const response = await fetch(`${API_BASE}/api/documents`, {
+                headers: {
+                    Authorization: `Bearer ${getAuthToken()}`
+                }
+            });
             const data = await response.json();
             if (!response.ok) throw new Error(data.message || "History is unavailable.");
             const documents = Array.isArray(data) ? data : Array.isArray(data.documents) ? data.documents : [];
