@@ -18,6 +18,11 @@ const { createClient } = require("@supabase/supabase-js");
 
 const supabase = require("./supabase");
 
+const supabaseAdmin = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+);
+
 // =====================================================
 // LOAD ENVIRONMENT VARIABLES
 // =====================================================
@@ -437,7 +442,7 @@ app.post(
             const {
                 error: profileError
             } =
-                await supabase
+                await supabaseAdmin
                     .from("profiles")
                     .upsert(
                         {
