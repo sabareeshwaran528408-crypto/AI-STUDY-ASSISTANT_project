@@ -382,7 +382,7 @@ app.post(
                 data: authData,
                 error: authError
             } =
-                await supabase.auth.admin.createUser({
+                await supabaseAdmin.auth.admin.createUser({
 
                     email:
                         cleanEmail,
@@ -464,7 +464,7 @@ app.post(
                     profileError
                 );
 
-                await supabase.auth.admin.deleteUser(
+                await supabaseAdmin.auth.admin.deleteUser(
                     user.id
                 );
 
